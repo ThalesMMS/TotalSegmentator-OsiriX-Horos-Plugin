@@ -9,13 +9,13 @@
 
 import Cocoa
 
-// Janela de configuracao para o TotalSegmentator dentro do Horos.
-// Concentra a escolha de tarefa, dispositivo e diretorio de saida antes de disparar o pipeline.
+// Configuration window for running TotalSegmentator inside Horos.
+// It centralizes task, device, and output directory choices before launching the pipeline.
 
 final class RunSegmentationWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
     typealias PreferencesState = TotalSegmentatorHorosPlugin.SegmentationPreferences.State
 
-    private let fallbackOutputPath: String = {
+    private(set) var fallbackOutputPath: String = {
         let base = "~/temp/TotalSegmentator"
         return (base as NSString).expandingTildeInPath
     }()
@@ -66,6 +66,9 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         return NSNib.Name("RunSegmentationWindowController")
     }
 
+    /// Configure the window and its UI elements after the nib has been loaded.
+    /// 
+    /// Sets a light appearance for the window, assigns delegates for the window and output path field, enables the launch button, pre-fills the output path field with a fallback path if it is empty, ensures non-editable label text is readable, and applies the current configuration to populate controls.
     override func windowDidLoad() {
         super.windowDidLoad()
         // Force light appearance for consistent look
@@ -73,7 +76,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         window?.delegate = self
         outputPathField?.delegate = self
         launchButton?.isEnabled = true
-        // Preenche com um caminho padrao para evitar campos vazios na primeira abertura.
+        // Pre-fill a default path so the field is not empty the first time the window opens.
         if outputPathField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
             outputPathField?.stringValue = fallbackOutputPath
         }
@@ -96,9 +99,13 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         launchButton?.alphaValue = 1.0
     }
 
+    /// Updates the launch button state when the output path text field changes.
+    /// 
+    /// If the notification's `object` is the controller's `outputPathField`, this method refreshes the launch button state to reflect the edited path.
+    /// - Parameter obj: The `Notification` delivered for a control text change; its `object` is expected to be the sending `NSTextField`.
     func controlTextDidChange(_ obj: Notification) {
         guard let textField = obj.object as? NSTextField, textField == outputPathField else { return }
-        // Atualiza botao sempre que o usuario altera o caminho manualmente.
+        // Update the button whenever the user edits the path manually.
         updateLaunchButtonState()
     }
 
@@ -145,18 +152,21 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         onCompletion?(result)
     }
 
+    /// Applies the current `configuration` to the window's UI controls and visual state.
+    /// 
+    /// Updates the window title and disables standard window buttons, populates task and device pop-up menus (only once per controller lifetime), selects items that match the configured task and device, sets the fast-mode checkbox, fills the class summary and license fields, ensures an output path is present (using the configured output directory or a fallback), and refreshes the launch button state.
     private func applyConfiguration() {
         guard let configuration = configuration else { return }
 
         if let window = window {
             window.title = NSLocalizedString("Run TotalSegmentator", comment: "Run window title")
-            window.standardWindowButton(.zoomButton)?.isEnabled = false
-            window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-            window.standardWindowButton(.closeButton)?.isEnabled = false
+            for button in [NSWindow.ButtonType.zoomButton, .miniaturizeButton, .closeButton] {
+                window.standardWindowButton(button)?.isEnabled = false
+            }
         }
 
         if !hasConfiguredOptions {
-            // Opcoes sao configuradas apenas uma vez para manter selecao do usuario ao reabrir a janela.
+            // Populate the options only once so the user's selection survives when reopening the window.
             populatePopUpButton(taskPopupButton, with: configuration.taskOptions)
             populatePopUpButton(devicePopupButton, with: configuration.deviceOptions)
             hasConfiguredOptions = true
@@ -207,21 +217,16 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         }
     }
 
+    /// Constructs a `PreferencesState` by reading the current UI control values.
+    /// 
+    /// The returned preferences start from `configuration?.preferences` and are updated with the selected task and device (or `nil` if no selection), the fast-mode checkbox state, and the trimmed license string (empty license becomes `nil`).
+    /// - Returns: The updated `PreferencesState` reflecting the UI selections, or `nil` if no base configuration is available.
     private func gatherPreferencesFromUI() -> PreferencesState? {
         guard var preferences = configuration?.preferences else { return nil }
 
-        // Recupera a escolha do usuario sem assumir que os itens sempre existem.
-        if let selectedTask = taskPopupButton?.selectedItem?.representedObject as? String {
-            preferences.task = selectedTask
-        } else {
-            preferences.task = nil
-        }
-
-        if let selectedDevice = devicePopupButton?.selectedItem?.representedObject as? String {
-            preferences.device = selectedDevice
-        } else {
-            preferences.device = nil
-        }
+        // Read the user's choice without assuming the menu items are always present.
+        preferences.task = taskPopupButton?.selectedItem?.representedObject as? String
+        preferences.device = devicePopupButton?.selectedItem?.representedObject as? String
 
         preferences.useFast = fastModeCheckbox?.state == .on
 

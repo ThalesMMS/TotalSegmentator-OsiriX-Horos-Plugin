@@ -10,42 +10,20 @@
 import Cocoa
 import CoreData
 
-// Plugin que faz a ponte entre o TotalSegmentator (CLI Python) e o Horos/OsiriX.
-// Exporta as series DICOM abertas, executa o modelo e traz as mascaras de volta como overlays.
+// Plugin that bridges TotalSegmentator (the Python CLI) with Horos/OsiriX.
+// It exports the open DICOM series, runs the model, and brings the masks back as overlays.
 
-/// Implementacao principal do filtro Horos.
-/// Orquestra exportacao DICOM, execucao do TotalSegmentator e reimportacao das mascaras.
+/// Main implementation of the Horos filter.
+/// Orchestrates DICOM export, TotalSegmentator execution, and mask reimport.
 @objc(TotalSegmentatorHorosPlugin)
 class TotalSegmentatorHorosPlugin: PluginFilter {
-    @IBOutlet weak var settingsWindow: NSWindow!
-    @IBOutlet weak var executablePathField: NSTextField!
-    @IBOutlet weak var taskPopupButton: NSPopUpButton!
-    @IBOutlet weak var devicePopupButton: NSPopUpButton!
-    @IBOutlet weak var fastModeCheckbox: NSButton!
-    @IBOutlet weak var hideROIsCheckbox: NSButton!
-    @IBOutlet weak var additionalArgumentsField: NSTextField!
-    @IBOutlet weak var licenseKeyField: NSTextField!
-    @IBOutlet weak var classSelectionSummaryField: NSTextField!
-    @IBOutlet weak var classSelectionButton: NSButton!
+    static let pluginDisplayName = "TotalSegmentator"
+    static let settingsMenuTitle = "TotalSegmentator Settings"
+    static let runMenuTitle = "Run TotalSegmentator"
+    static let toolbarMenuTitle = "TotalSegmentator"
+    static let menuTitles = [settingsMenuTitle, runMenuTitle, toolbarMenuTitle]
 
-    private enum MenuAction: String {
-        case showSettings = "TotalSegmentator Settings"
-        case runSegmentation = "Run TotalSegmentator"
-        case toolbarAction = "TotalSegmentator"  // Toolbar button uses this name
-    }
-
-    let preferences = SegmentationPreferences()
-    var progressWindowController: SegmentationProgressWindowController?
-    var setupProgressWindowController: SegmentationProgressWindowController?
-    let auditQueue = DispatchQueue(label: "org.totalsegmentator.horos.audit", qos: .utility)
-    var classSelectionController: ClassSelectionWindowController?
-    var runConfigurationController: RunSegmentationWindowController?
-    var availableClassOptionsCache: [String: [String]] = [:]
-    var selectedClassNames: Set<String> = [] {
-        didSet { updateClassSelectionSummary() }
-    }
-
-    let taskOptions: [(title: String, value: String?)] = [
+    static let canonicalTaskOptions: [(title: String, value: String?)] = [
         (NSLocalizedString("Automatic (default)", comment: "Default task option"), nil),
         ("Total (multi-organ)", "total"),
         ("Total (fast)", "total_fast"),
@@ -69,18 +47,65 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
         ("Pancreas", "pancreas")
     ]
 
-    let deviceOptions: [(title: String, value: String?)] = [
+    static let canonicalDeviceOptions: [(title: String, value: String?)] = [
         (NSLocalizedString("Auto", comment: "Automatic device selection"), nil),
         ("cpu", "cpu"),
         ("gpu", "gpu"),
         ("mps", "mps")
     ]
 
-    // Entrada principal chamada pelo Horos ao clicar nos itens de menu do plugin.
+    @IBOutlet weak var settingsWindow: NSWindow!
+    @IBOutlet weak var executablePathField: NSTextField!
+    @IBOutlet weak var taskPopupButton: NSPopUpButton!
+    @IBOutlet weak var devicePopupButton: NSPopUpButton!
+    @IBOutlet weak var fastModeCheckbox: NSButton!
+    @IBOutlet weak var hideROIsCheckbox: NSButton!
+    @IBOutlet weak var additionalArgumentsField: NSTextField!
+    @IBOutlet weak var licenseKeyField: NSTextField!
+    @IBOutlet weak var classSelectionSummaryField: NSTextField!
+    @IBOutlet weak var classSelectionButton: NSButton!
+
+    private enum MenuAction {
+        case showSettings
+        case runSegmentation
+        case toolbarAction
+
+        init?(menuTitle: String) {
+            switch menuTitle {
+            case TotalSegmentatorHorosPlugin.settingsMenuTitle:
+                self = .showSettings
+            case TotalSegmentatorHorosPlugin.runMenuTitle:
+                self = .runSegmentation
+            case TotalSegmentatorHorosPlugin.toolbarMenuTitle:
+                self = .toolbarAction
+            default:
+                return nil
+            }
+        }
+    }
+
+    let preferences = SegmentationPreferences()
+    var progressWindowController: SegmentationProgressWindowController?
+    var setupProgressWindowController: SegmentationProgressWindowController?
+    let auditQueue = DispatchQueue(label: "org.totalsegmentator.horos.audit", qos: .utility)
+    var classSelectionController: ClassSelectionWindowController?
+    var runConfigurationController: RunSegmentationWindowController?
+    var availableClassOptionsCache: [String: [String]] = [:]
+    var selectedClassNames: Set<String> = [] {
+        didSet { updateClassSelectionSummary() }
+    }
+
+    let taskOptions = TotalSegmentatorHorosPlugin.canonicalTaskOptions
+    let deviceOptions = TotalSegmentatorHorosPlugin.canonicalDeviceOptions
+
+    /// Handle a Horos menu action by dispatching the corresponding plugin behavior.
+    /// - Parameters:
+    ///   - menuName: The title of the invoked menu item that identifies the action to perform; may be `nil` or unrecognized.
+    /// - Returns: An integer status code (always `0`). If `menuName` is `nil` or not a supported action, an alert is presented and the function returns `0`.
     override func filterImage(_ menuName: String!) -> Int {
         logToConsole("filterImage invoked for menu action: \(menuName ?? "nil")")
         guard let menuName = menuName,
-              let action = MenuAction(rawValue: menuName) else {
+              let action = MenuAction(menuTitle: menuName) else {
             NSLog("TotalSegmentatorHorosPlugin received unsupported menu action: %@", menuName ?? "nil")
             presentAlert(title: "TotalSegmentator", message: "Unsupported action selected.")
             return 0
@@ -104,9 +129,7 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
         settingsWindow?.delegate = self
         configureSettingsInterfaceIfNeeded()
 
-        let persistedSelection = Set(preferences.effectivePreferences().selectedClassNames)
-        selectedClassNames = persistedSelection
-        updateClassSelectionSummary()
+        selectedClassNames = Set(preferences.effectivePreferences().selectedClassNames)
 
         NSLog("TotalSegmentatorHorosPlugin loaded and ready.")
         DispatchQueue.global(qos: .utility).async { [weak self] in

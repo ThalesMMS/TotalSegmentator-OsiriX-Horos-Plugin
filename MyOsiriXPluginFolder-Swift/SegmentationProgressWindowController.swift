@@ -9,15 +9,17 @@
 
 import Cocoa
 
-// Janela para exibir logs e progresso enquanto o TotalSegmentator roda.
-// Foi pensada para trabalhar com atualizacoes fora da thread principal sem travar a UI.
+// Window that displays logs and progress while TotalSegmentator runs.
+// It was designed to handle updates coming from outside the main thread without freezing the UI.
 
 final class SegmentationProgressWindowController: NSWindowController {
+    private static let logFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+
     private lazy var textView: NSTextView = {
         let view = NSTextView(frame: .zero)
         view.isEditable = false
         view.isSelectable = true
-        view.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        view.font = Self.logFont
         view.textContainerInset = NSSize(width: 4, height: 8)
         view.minSize = NSSize(width: 0, height: 0)
         view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
@@ -73,7 +75,7 @@ final class SegmentationProgressWindowController: NSWindowController {
             let normalized = message.hasSuffix("\n") ? message : message + "\n"
             let attributes: [NSAttributedString.Key: Any] = [
                 .foregroundColor: NSColor.labelColor,
-                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+                .font: Self.logFont
             ]
             let attributed = NSAttributedString(string: normalized, attributes: attributes)
             textStorage.append(attributed)
@@ -132,11 +134,14 @@ final class SegmentationProgressWindowController: NSWindowController {
         super.showWindow(sender)
     }
 
+    /// Ensures the controller has an NSWindow and sets up its content if not already configured.
+    /// - Important: Must be called on the main thread; a runtime precondition failure occurs otherwise.
+    /// - Behavior: Creates and assigns a new window when none exists (fixed initial size, titled/closable/miniaturizable style, light appearance) and configures the window's content once.
     private func ensureWindow() {
         precondition(Thread.isMainThread, "UI updates must occur on the main thread.")
 
         if window == nil {
-            // Janela criada sob demanda para evitar carregar nibs.
+            // Create the window lazily so nibs do not need to be loaded up front.
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 560, height: 340),
                 styleMask: [.titled, .closable, .miniaturizable],
@@ -153,11 +158,14 @@ final class SegmentationProgressWindowController: NSWindowController {
         configureContentIfNeeded()
     }
 
+    /// Configures the window's content view by adding the scrolling log view, progress indicator, and cancel button, and activates their layout constraints.
+    /// 
+    /// This method is idempotent — it does nothing if the UI has already been configured or if the window's content view is not available. It also applies standard system appearance (text background and label colors) to the log text view.
     private func configureContentIfNeeded() {
         guard let contentView = window?.contentView, !didConfigureUI else { return }
         didConfigureUI = true
 
-        // Usa scrollview para manter historico de logs enquanto a barra gira.
+        // Use a scroll view to preserve the log history while the spinner is active.
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -196,6 +204,8 @@ final class SegmentationProgressWindowController: NSWindowController {
         append("Cancellation requested…")
     }
 
+    /// Ensures `ensureWindow()` has been called and then invokes the provided closure on the main thread with the controller.
+    /// - Parameter block: A closure that receives the `SegmentationProgressWindowController` and is executed on the main thread after the window has been created/configured.
     private func performOnMain(_ block: @escaping (SegmentationProgressWindowController) -> Void) {
         let work = { [weak self] in
             guard let self = self else { return }
@@ -203,7 +213,7 @@ final class SegmentationProgressWindowController: NSWindowController {
             block(self)
         }
 
-        // Sempre encaminha para a thread principal para evitar problemas de AppKit.
+        // Always hop back to the main thread to avoid AppKit issues.
         if Thread.isMainThread {
             work()
         } else {

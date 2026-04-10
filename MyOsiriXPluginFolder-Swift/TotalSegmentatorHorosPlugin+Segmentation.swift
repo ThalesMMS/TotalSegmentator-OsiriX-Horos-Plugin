@@ -6,8 +6,10 @@
 import Cocoa
 
 extension TotalSegmentatorHorosPlugin {
+    /// Starts the segmentation workflow by exporting the active viewer's series and presenting the run-configuration sheet.
+    /// - Discussion: Presents alerts and aborts when no active 2D viewer, viewer window, or export result is available. When the user confirms the run configuration, the chosen preferences and selected classes are stored and segmentation is initiated in the background; if the configuration is cancelled, the temporary export directory is cleaned up.
     func startSegmentationFlow() {
-        // Coleta a serie ativa, exporta para uma pasta temporaria e abre a UI de configuracao.
+        // Collect the active series, export it to a temporary folder, and open the configuration UI.
         logToConsole("startSegmentationFlow called")
         let primaryViewer = (self.value(forKey: "viewerController") as? ViewerController) ?? ViewerController.frontMostDisplayed2DViewer()
         logToConsole("viewerController via KVC: \((self.value(forKey: "viewerController") as? ViewerController) != nil)")
@@ -84,12 +86,18 @@ extension TotalSegmentatorHorosPlugin {
         }
     }
 
+    /// Executes the segmentation pipeline for the given exported series and integrates or imports the results into the application.
+    /// Cleans up the temporary export directory on completion and updates the user via progress UI and alerts on the main queue.
+    /// - Parameters:
+    ///   - exportResult: The export context containing the temporary directory and exported series metadata to be segmented.
+    ///   - outputDirectory: Optional user-provided output directory to write TotalSegmentator outputs; if `nil`, an output directory is resolved automatically.
+    ///   - preferences: A snapshot of segmentation preferences used to configure TotalSegmentator (task, device, additional arguments, class selection, etc.).
     func runSegmentation(
         exportResult: ExportResult,
         outputDirectory providedOutputDirectory: URL?,
         preferences preferencesState: SegmentationPreferences.State
     ) {
-        // Executa o pipeline completo: valida ambiente Python, monta argumentos e reimporta os resultados.
+        // Run the full pipeline: validate the Python environment, assemble arguments, and reimport the results.
         defer { cleanupTemporaryDirectory(exportResult.directory) }
 
         performInitialSetupIfNeeded(displayProgress: true)
@@ -107,13 +115,13 @@ extension TotalSegmentatorHorosPlugin {
         let additionalTokens: [String]
         if let additional = preferencesState.additionalArguments,
            !additional.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            additionalTokens = tokenize(commandLine: additional)
+            additionalTokens = Self.tokenize(commandLine: additional)
         } else {
             additionalTokens = []
         }
 
-        let outputDetection = detectOutputType(from: additionalTokens)
-        let sanitizedAdditionalTokens = removeROISubsetTokens(from: outputDetection.remainingTokens)
+        let outputDetection = Self.detectOutputType(from: additionalTokens)
+        let sanitizedAdditionalTokens = Self.removeROISubsetTokens(from: outputDetection.remainingTokens)
         let effectiveOutputType: SegmentationOutputType = .dicom
         if outputDetection.type != .dicom {
             logToConsole("Overriding requested output type '\(outputDetection.type.description)' with 'dicom' to ensure RT Struct overlays are generated.")
@@ -361,19 +369,7 @@ extension TotalSegmentatorHorosPlugin {
         let fileManager = FileManager.default
 
         if let provided = providedDirectory {
-            var isDirectory: ObjCBool = false
-            if fileManager.fileExists(atPath: provided.path, isDirectory: &isDirectory) {
-                if !isDirectory.boolValue {
-                    throw NSError(
-                        domain: "org.totalsegmentator.plugin",
-                        code: 1002,
-                        userInfo: [NSLocalizedDescriptionKey: "The selected output path is not a directory."]
-                    )
-                }
-            } else {
-                try fileManager.createDirectory(at: provided, withIntermediateDirectories: true)
-            }
-            return provided
+            return try Self.resolveOutputDirectoryIfProvided(provided, fileManager: fileManager)
         }
 
         let baseName = "segmentation_output"
@@ -411,7 +407,23 @@ extension TotalSegmentatorHorosPlugin {
         return controller
     }
 
-    private func tokenize(commandLine: String) -> [String] {
+    static func resolveOutputDirectoryIfProvided(_ provided: URL, fileManager: FileManager = .default) throws -> URL {
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: provided.path, isDirectory: &isDirectory) {
+            if !isDirectory.boolValue {
+                throw NSError(
+                    domain: "org.totalsegmentator.plugin",
+                    code: 1002,
+                    userInfo: [NSLocalizedDescriptionKey: "The selected output path is not a directory."]
+                )
+            }
+        } else {
+            try fileManager.createDirectory(at: provided, withIntermediateDirectories: true)
+        }
+        return provided
+    }
+
+    static func tokenize(commandLine: String) -> [String] {
         var arguments: [String] = []
         var current = ""
         var isInQuotes = false
@@ -462,7 +474,7 @@ extension TotalSegmentatorHorosPlugin {
         return arguments
     }
 
-    private func detectOutputType(from tokens: [String]) -> (type: SegmentationOutputType, remainingTokens: [String]) {
+    static func detectOutputType(from tokens: [String]) -> (type: SegmentationOutputType, remainingTokens: [String]) {
         var detectedType: SegmentationOutputType = .dicom
         var remainingTokens: [String] = []
 
@@ -504,7 +516,7 @@ extension TotalSegmentatorHorosPlugin {
         return (detectedType, remainingTokens)
     }
 
-    private func removeROISubsetTokens(from tokens: [String]) -> [String] {
+    static func removeROISubsetTokens(from tokens: [String]) -> [String] {
         var filtered: [String] = []
         var index = 0
 

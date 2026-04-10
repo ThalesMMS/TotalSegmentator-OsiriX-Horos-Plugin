@@ -9,8 +9,8 @@
 
 import Cocoa
 
-// Janela simples para o usuario escolher quais classes de segmentacao quer importar.
-// Mantemos a interface pequena e focada em pesquisa rapida + checkboxes.
+// Simple window that lets the user choose which segmentation classes to import.
+// The UI stays compact and focused on quick search plus checkboxes.
 
 final class ClassSelectionWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     private struct ClassItem {
@@ -54,10 +54,13 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Configure the window's content view by creating and laying out the search field, table view (inside a scroll view), and action buttons.
+    /// 
+    /// This builds the UI programmatically (no nibs), sets up behaviors and targets for the search field and buttons, configures the table view and its scroll container, arranges the buttons in an horizontal stack with a flexible spacer, adds these views to the window's content view, and activates Auto Layout constraints to position the controls.
     private func configureContent() {
         guard let contentView = window?.contentView else { return }
 
-        // Construcao programatica para evitar depender de nibs externos.
+        // Build the UI programmatically to avoid depending on external nibs.
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.placeholderString = NSLocalizedString("Filter classes", comment: "Search field placeholder for class selection")
         searchField.target = self
@@ -121,11 +124,16 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
         ])
     }
 
+    /// Updates the visible row indices to match `currentFilter` and refreshes the table view.
+    /// 
+    /// If `currentFilter` is empty, all item indices are included; otherwise only items whose
+    /// `name` contains `currentFilter` using case-insensitive and diacritic-insensitive matching
+    /// are included. After updating `filteredIndices`, the table view is reloaded.
     private func applyFilter() {
         if currentFilter.isEmpty {
             filteredIndices = Array(items.indices)
         } else {
-            // Mantemos apenas os indices que contem o filtro digitado (ignorando maiusculas/minusculas e acentos).
+            // Keep only the indices that match the typed filter, ignoring case and diacritics.
             filteredIndices = items.indices.filter { index in
                 items[index].name.range(of: currentFilter, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             }
@@ -138,26 +146,26 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
         applyFilter()
     }
 
+    /// Updates the selection state of the class corresponding to the given checkbox.
+    /// 
+    /// Sets the matching `ClassItem`'s `isSelected` to `true` when the checkbox `state` is `.on`, otherwise `false`. If the button's `tag` does not map to an existing item, the method has no effect.
+    /// - Parameter sender: The checkbox button whose `tag` is the index into `items`; its `state` determines the new selection value.
     @objc private func toggleClassCheckbox(_ sender: NSButton) {
         let index = sender.tag
         guard items.indices.contains(index) else { return }
-        // As linhas sao controladas por tag para manter o estado sem datasource adicional.
+        // Rows are controlled via tags so the selection state stays in sync without extra datasource plumbing.
         items[index].isSelected = sender.state == .on
     }
 
-    @objc private func selectAllClasses() {
+    private func setAllItemsSelected(_ selected: Bool) {
         for index in items.indices {
-            items[index].isSelected = true
+            items[index].isSelected = selected
         }
         tableView.reloadData()
     }
 
-    @objc private func clearSelection() {
-        for index in items.indices {
-            items[index].isSelected = false
-        }
-        tableView.reloadData()
-    }
+    @objc private func selectAllClasses() { setAllItemsSelected(true) }
+    @objc private func clearSelection() { setAllItemsSelected(false) }
 
     @objc private func cancelSelection() {
         if let window = window {
