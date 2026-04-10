@@ -9,8 +9,8 @@
 
 import Cocoa
 
-// Janela simples para o usuario escolher quais classes de segmentacao quer importar.
-// Mantemos a interface pequena e focada em pesquisa rapida + checkboxes.
+// Simple window that lets the user choose which segmentation classes to import.
+// The UI stays compact and focused on quick search plus checkboxes.
 
 final class ClassSelectionWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     private struct ClassItem {
@@ -57,7 +57,7 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
     private func configureContent() {
         guard let contentView = window?.contentView else { return }
 
-        // Construcao programatica para evitar depender de nibs externos.
+        // Build the UI programmatically to avoid depending on external nibs.
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.placeholderString = NSLocalizedString("Filter classes", comment: "Search field placeholder for class selection")
         searchField.target = self
@@ -125,7 +125,7 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
         if currentFilter.isEmpty {
             filteredIndices = Array(items.indices)
         } else {
-            // Mantemos apenas os indices que contem o filtro digitado (ignorando maiusculas/minusculas e acentos).
+            // Keep only the indices that match the typed filter, ignoring case and diacritics.
             filteredIndices = items.indices.filter { index in
                 items[index].name.range(of: currentFilter, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             }
@@ -141,7 +141,7 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
     @objc private func toggleClassCheckbox(_ sender: NSButton) {
         let index = sender.tag
         guard items.indices.contains(index) else { return }
-        // As linhas sao controladas por tag para manter o estado sem datasource adicional.
+        // Rows are controlled via tags so the selection state stays in sync without extra datasource plumbing.
         items[index].isSelected = sender.state == .on
     }
 

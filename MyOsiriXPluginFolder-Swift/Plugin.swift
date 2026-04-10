@@ -10,11 +10,11 @@
 import Cocoa
 import CoreData
 
-// Plugin que faz a ponte entre o TotalSegmentator (CLI Python) e o Horos/OsiriX.
-// Exporta as series DICOM abertas, executa o modelo e traz as mascaras de volta como overlays.
+// Plugin that bridges TotalSegmentator (the Python CLI) with Horos/OsiriX.
+// It exports the open DICOM series, runs the model, and brings the masks back as overlays.
 
-/// Implementacao principal do filtro Horos.
-/// Orquestra exportacao DICOM, execucao do TotalSegmentator e reimportacao das mascaras.
+/// Main implementation of the Horos filter.
+/// Orchestrates DICOM export, TotalSegmentator execution, and mask reimport.
 @objc(TotalSegmentatorHorosPlugin)
 class TotalSegmentatorHorosPlugin: PluginFilter {
     @IBOutlet weak var settingsWindow: NSWindow!
@@ -76,7 +76,7 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
         ("mps", "mps")
     ]
 
-    // Entrada principal chamada pelo Horos ao clicar nos itens de menu do plugin.
+    // Main entry point invoked by Horos when the user clicks one of the plugin menu items.
     override func filterImage(_ menuName: String!) -> Int {
         logToConsole("filterImage invoked for menu action: \(menuName ?? "nil")")
         guard let menuName = menuName,

@@ -7,7 +7,7 @@ import Cocoa
 
 extension TotalSegmentatorHorosPlugin {
     func startSegmentationFlow() {
-        // Coleta a serie ativa, exporta para uma pasta temporaria e abre a UI de configuracao.
+        // Collect the active series, export it to a temporary folder, and open the configuration UI.
         logToConsole("startSegmentationFlow called")
         let primaryViewer = (self.value(forKey: "viewerController") as? ViewerController) ?? ViewerController.frontMostDisplayed2DViewer()
         logToConsole("viewerController via KVC: \((self.value(forKey: "viewerController") as? ViewerController) != nil)")
@@ -89,7 +89,7 @@ extension TotalSegmentatorHorosPlugin {
         outputDirectory providedOutputDirectory: URL?,
         preferences preferencesState: SegmentationPreferences.State
     ) {
-        // Executa o pipeline completo: valida ambiente Python, monta argumentos e reimporta os resultados.
+        // Run the full pipeline: validate the Python environment, assemble arguments, and reimport the results.
         defer { cleanupTemporaryDirectory(exportResult.directory) }
 
         performInitialSetupIfNeeded(displayProgress: true)

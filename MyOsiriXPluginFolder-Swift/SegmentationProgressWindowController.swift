@@ -9,8 +9,8 @@
 
 import Cocoa
 
-// Janela para exibir logs e progresso enquanto o TotalSegmentator roda.
-// Foi pensada para trabalhar com atualizacoes fora da thread principal sem travar a UI.
+// Window that displays logs and progress while TotalSegmentator runs.
+// It was designed to handle updates coming from outside the main thread without freezing the UI.
 
 final class SegmentationProgressWindowController: NSWindowController {
     private lazy var textView: NSTextView = {
@@ -136,7 +136,7 @@ final class SegmentationProgressWindowController: NSWindowController {
         precondition(Thread.isMainThread, "UI updates must occur on the main thread.")
 
         if window == nil {
-            // Janela criada sob demanda para evitar carregar nibs.
+            // Create the window lazily so nibs do not need to be loaded up front.
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 560, height: 340),
                 styleMask: [.titled, .closable, .miniaturizable],
@@ -157,7 +157,7 @@ final class SegmentationProgressWindowController: NSWindowController {
         guard let contentView = window?.contentView, !didConfigureUI else { return }
         didConfigureUI = true
 
-        // Usa scrollview para manter historico de logs enquanto a barra gira.
+        // Use a scroll view to preserve the log history while the spinner is active.
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -203,7 +203,7 @@ final class SegmentationProgressWindowController: NSWindowController {
             block(self)
         }
 
-        // Sempre encaminha para a thread principal para evitar problemas de AppKit.
+        // Always hop back to the main thread to avoid AppKit issues.
         if Thread.isMainThread {
             work()
         } else {
