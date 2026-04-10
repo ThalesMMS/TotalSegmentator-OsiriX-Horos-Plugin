@@ -132,6 +132,9 @@ final class SegmentationProgressWindowController: NSWindowController {
         super.showWindow(sender)
     }
 
+    /// Ensures the controller has an NSWindow and sets up its content if not already configured.
+    /// - Important: Must be called on the main thread; a runtime precondition failure occurs otherwise.
+    /// - Behavior: Creates and assigns a new window when none exists (fixed initial size, titled/closable/miniaturizable style, light appearance) and configures the window's content once.
     private func ensureWindow() {
         precondition(Thread.isMainThread, "UI updates must occur on the main thread.")
 
@@ -153,6 +156,9 @@ final class SegmentationProgressWindowController: NSWindowController {
         configureContentIfNeeded()
     }
 
+    /// Configures the window's content view by adding the scrolling log view, progress indicator, and cancel button, and activates their layout constraints.
+    /// 
+    /// This method is idempotent — it does nothing if the UI has already been configured or if the window's content view is not available. It also applies standard system appearance (text background and label colors) to the log text view.
     private func configureContentIfNeeded() {
         guard let contentView = window?.contentView, !didConfigureUI else { return }
         didConfigureUI = true
@@ -196,6 +202,8 @@ final class SegmentationProgressWindowController: NSWindowController {
         append("Cancellation requested…")
     }
 
+    /// Ensures `ensureWindow()` has been called and then invokes the provided closure on the main thread with the controller.
+    /// - Parameter block: A closure that receives the `SegmentationProgressWindowController` and is executed on the main thread after the window has been created/configured.
     private func performOnMain(_ block: @escaping (SegmentationProgressWindowController) -> Void) {
         let work = { [weak self] in
             guard let self = self else { return }

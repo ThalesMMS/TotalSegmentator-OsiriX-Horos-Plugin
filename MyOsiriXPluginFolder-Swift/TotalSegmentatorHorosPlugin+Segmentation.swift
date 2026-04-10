@@ -6,6 +6,8 @@
 import Cocoa
 
 extension TotalSegmentatorHorosPlugin {
+    /// Starts the segmentation workflow by exporting the active viewer's series and presenting the run-configuration sheet.
+    /// - Discussion: Presents alerts and aborts when no active 2D viewer, viewer window, or export result is available. When the user confirms the run configuration, the chosen preferences and selected classes are stored and segmentation is initiated in the background; if the configuration is cancelled, the temporary export directory is cleaned up.
     func startSegmentationFlow() {
         // Collect the active series, export it to a temporary folder, and open the configuration UI.
         logToConsole("startSegmentationFlow called")
@@ -84,6 +86,12 @@ extension TotalSegmentatorHorosPlugin {
         }
     }
 
+    /// Executes the segmentation pipeline for the given exported series and integrates or imports the results into the application.
+    /// Cleans up the temporary export directory on completion and updates the user via progress UI and alerts on the main queue.
+    /// - Parameters:
+    ///   - exportResult: The export context containing the temporary directory and exported series metadata to be segmented.
+    ///   - outputDirectory: Optional user-provided output directory to write TotalSegmentator outputs; if `nil`, an output directory is resolved automatically.
+    ///   - preferences: A snapshot of segmentation preferences used to configure TotalSegmentator (task, device, additional arguments, class selection, etc.).
     func runSegmentation(
         exportResult: ExportResult,
         outputDirectory providedOutputDirectory: URL?,

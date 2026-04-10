@@ -76,7 +76,10 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
         ("mps", "mps")
     ]
 
-    // Main entry point invoked by Horos when the user clicks one of the plugin menu items.
+    /// Handle a Horos menu action by dispatching the corresponding plugin behavior.
+    /// - Parameters:
+    ///   - menuName: The title of the invoked menu item that identifies the action to perform; may be `nil` or unrecognized.
+    /// - Returns: An integer status code (always `0`). If `menuName` is `nil` or not a supported action, an alert is presented and the function returns `0`.
     override func filterImage(_ menuName: String!) -> Int {
         logToConsole("filterImage invoked for menu action: \(menuName ?? "nil")")
         guard let menuName = menuName,
