@@ -160,9 +160,9 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
         if let window = window {
             window.title = NSLocalizedString("Run TotalSegmentator", comment: "Run window title")
-            window.standardWindowButton(.zoomButton)?.isEnabled = false
-            window.standardWindowButton(.miniaturizeButton)?.isEnabled = false
-            window.standardWindowButton(.closeButton)?.isEnabled = false
+            for button in [NSWindow.ButtonType.zoomButton, .miniaturizeButton, .closeButton] {
+                window.standardWindowButton(button)?.isEnabled = false
+            }
         }
 
         if !hasConfiguredOptions {
@@ -225,17 +225,8 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         guard var preferences = configuration?.preferences else { return nil }
 
         // Read the user's choice without assuming the menu items are always present.
-        if let selectedTask = taskPopupButton?.selectedItem?.representedObject as? String {
-            preferences.task = selectedTask
-        } else {
-            preferences.task = nil
-        }
-
-        if let selectedDevice = devicePopupButton?.selectedItem?.representedObject as? String {
-            preferences.device = selectedDevice
-        } else {
-            preferences.device = nil
-        }
+        preferences.task = taskPopupButton?.selectedItem?.representedObject as? String
+        preferences.device = devicePopupButton?.selectedItem?.representedObject as? String
 
         preferences.useFast = fastModeCheckbox?.state == .on
 

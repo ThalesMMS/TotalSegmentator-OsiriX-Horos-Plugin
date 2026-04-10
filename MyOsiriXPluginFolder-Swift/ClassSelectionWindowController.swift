@@ -157,19 +157,15 @@ final class ClassSelectionWindowController: NSWindowController, NSTableViewDataS
         items[index].isSelected = sender.state == .on
     }
 
-    @objc private func selectAllClasses() {
+    private func setAllItemsSelected(_ selected: Bool) {
         for index in items.indices {
-            items[index].isSelected = true
+            items[index].isSelected = selected
         }
         tableView.reloadData()
     }
 
-    @objc private func clearSelection() {
-        for index in items.indices {
-            items[index].isSelected = false
-        }
-        tableView.reloadData()
-    }
+    @objc private func selectAllClasses() { setAllItemsSelected(true) }
+    @objc private func clearSelection() { setAllItemsSelected(false) }
 
     @objc private func cancelSelection() {
         if let window = window {

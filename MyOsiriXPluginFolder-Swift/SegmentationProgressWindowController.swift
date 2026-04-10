@@ -13,11 +13,13 @@ import Cocoa
 // It was designed to handle updates coming from outside the main thread without freezing the UI.
 
 final class SegmentationProgressWindowController: NSWindowController {
+    private static let logFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+
     private lazy var textView: NSTextView = {
         let view = NSTextView(frame: .zero)
         view.isEditable = false
         view.isSelectable = true
-        view.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        view.font = Self.logFont
         view.textContainerInset = NSSize(width: 4, height: 8)
         view.minSize = NSSize(width: 0, height: 0)
         view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
@@ -73,7 +75,7 @@ final class SegmentationProgressWindowController: NSWindowController {
             let normalized = message.hasSuffix("\n") ? message : message + "\n"
             let attributes: [NSAttributedString.Key: Any] = [
                 .foregroundColor: NSColor.labelColor,
-                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+                .font: Self.logFont
             ]
             let attributed = NSAttributedString(string: normalized, attributes: attributes)
             textStorage.append(attributed)

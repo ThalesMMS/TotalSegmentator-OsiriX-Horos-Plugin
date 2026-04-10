@@ -350,12 +350,7 @@ extension TotalSegmentatorHorosPlugin {
                 }
                 self.presentAlert(title: "TotalSegmentator", message: successMessage)
             case .failure(let error):
-                let message: String
-                if (error as NSError).domain == "org.totalsegmentator.plugin" {
-                    message = error.localizedDescription
-                } else {
-                    message = error.localizedDescription
-                }
+                let message = error.localizedDescription
                 progressController.append(message)
                 progressController.close(after: 0.5)
                 self.presentAlert(title: "TotalSegmentator", message: message)

@@ -107,9 +107,7 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
         settingsWindow?.delegate = self
         configureSettingsInterfaceIfNeeded()
 
-        let persistedSelection = Set(preferences.effectivePreferences().selectedClassNames)
-        selectedClassNames = persistedSelection
-        updateClassSelectionSummary()
+        selectedClassNames = Set(preferences.effectivePreferences().selectedClassNames)
 
         NSLog("TotalSegmentatorHorosPlugin loaded and ready.")
         DispatchQueue.global(qos: .utility).async { [weak self] in
