@@ -115,13 +115,13 @@ extension TotalSegmentatorHorosPlugin {
         let additionalTokens: [String]
         if let additional = preferencesState.additionalArguments,
            !additional.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            additionalTokens = tokenize(commandLine: additional)
+            additionalTokens = Self.tokenize(commandLine: additional)
         } else {
             additionalTokens = []
         }
 
-        let outputDetection = detectOutputType(from: additionalTokens)
-        let sanitizedAdditionalTokens = removeROISubsetTokens(from: outputDetection.remainingTokens)
+        let outputDetection = Self.detectOutputType(from: additionalTokens)
+        let sanitizedAdditionalTokens = Self.removeROISubsetTokens(from: outputDetection.remainingTokens)
         let effectiveOutputType: SegmentationOutputType = .dicom
         if outputDetection.type != .dicom {
             logToConsole("Overriding requested output type '\(outputDetection.type.description)' with 'dicom' to ensure RT Struct overlays are generated.")
@@ -369,19 +369,7 @@ extension TotalSegmentatorHorosPlugin {
         let fileManager = FileManager.default
 
         if let provided = providedDirectory {
-            var isDirectory: ObjCBool = false
-            if fileManager.fileExists(atPath: provided.path, isDirectory: &isDirectory) {
-                if !isDirectory.boolValue {
-                    throw NSError(
-                        domain: "org.totalsegmentator.plugin",
-                        code: 1002,
-                        userInfo: [NSLocalizedDescriptionKey: "The selected output path is not a directory."]
-                    )
-                }
-            } else {
-                try fileManager.createDirectory(at: provided, withIntermediateDirectories: true)
-            }
-            return provided
+            return try Self.resolveOutputDirectoryIfProvided(provided, fileManager: fileManager)
         }
 
         let baseName = "segmentation_output"
@@ -419,7 +407,23 @@ extension TotalSegmentatorHorosPlugin {
         return controller
     }
 
-    private func tokenize(commandLine: String) -> [String] {
+    static func resolveOutputDirectoryIfProvided(_ provided: URL, fileManager: FileManager = .default) throws -> URL {
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: provided.path, isDirectory: &isDirectory) {
+            if !isDirectory.boolValue {
+                throw NSError(
+                    domain: "org.totalsegmentator.plugin",
+                    code: 1002,
+                    userInfo: [NSLocalizedDescriptionKey: "The selected output path is not a directory."]
+                )
+            }
+        } else {
+            try fileManager.createDirectory(at: provided, withIntermediateDirectories: true)
+        }
+        return provided
+    }
+
+    static func tokenize(commandLine: String) -> [String] {
         var arguments: [String] = []
         var current = ""
         var isInQuotes = false
@@ -470,7 +474,7 @@ extension TotalSegmentatorHorosPlugin {
         return arguments
     }
 
-    private func detectOutputType(from tokens: [String]) -> (type: SegmentationOutputType, remainingTokens: [String]) {
+    static func detectOutputType(from tokens: [String]) -> (type: SegmentationOutputType, remainingTokens: [String]) {
         var detectedType: SegmentationOutputType = .dicom
         var remainingTokens: [String] = []
 
@@ -512,7 +516,7 @@ extension TotalSegmentatorHorosPlugin {
         return (detectedType, remainingTokens)
     }
 
-    private func removeROISubsetTokens(from tokens: [String]) -> [String] {
+    static func removeROISubsetTokens(from tokens: [String]) -> [String] {
         var filtered: [String] = []
         var index = 0
 

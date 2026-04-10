@@ -128,59 +128,46 @@ final class SegmentationOutputTypeTests: XCTestCase {
 }
 
 // MARK: - Plugin MenuAction String Constants
-// These constants mirror the MenuAction rawValues in Plugin.swift.  Any rename of
-// the enum cases or their associated menu-title strings must also update these tests,
-// making regressions immediately visible.
+// These assertions use the canonical menu-title constants exported by Plugin.swift,
+// so menu dispatch tests cannot drift from the runtime values.
 
 final class PluginMenuActionStringTests: XCTestCase {
 
-    // The strings below are the *exact* titles that Horos passes to filterImage(_:).
-    // They correspond to the private MenuAction rawValues defined in Plugin.swift.
-
-    let settingsMenuTitle   = "TotalSegmentator Settings"
-    let runMenuTitle        = "Run TotalSegmentator"
-    let toolbarMenuTitle    = "TotalSegmentator"          // toolbar button
-
     func test_settingsMenuTitle_isNonEmpty() {
-        XCTAssertFalse(settingsMenuTitle.isEmpty)
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.settingsMenuTitle.isEmpty)
     }
 
     func test_runMenuTitle_isNonEmpty() {
-        XCTAssertFalse(runMenuTitle.isEmpty)
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.runMenuTitle.isEmpty)
     }
 
     func test_toolbarMenuTitle_isNonEmpty() {
-        XCTAssertFalse(toolbarMenuTitle.isEmpty)
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.toolbarMenuTitle.isEmpty)
     }
 
     func test_settingsMenuTitle_containsSettings() {
-        XCTAssertTrue(settingsMenuTitle.lowercased().contains("settings"))
+        XCTAssertTrue(TotalSegmentatorHorosPlugin.settingsMenuTitle.lowercased().contains("settings"))
     }
 
     func test_runMenuTitle_startsWithRun() {
-        XCTAssertTrue(runMenuTitle.lowercased().hasPrefix("run"))
+        XCTAssertTrue(TotalSegmentatorHorosPlugin.runMenuTitle.lowercased().hasPrefix("run"))
     }
 
     func test_allMenuTitles_containPluginName() {
-        let pluginName = "TotalSegmentator"
-        XCTAssertTrue(settingsMenuTitle.contains(pluginName))
-        XCTAssertTrue(runMenuTitle.contains(pluginName))
-        XCTAssertTrue(toolbarMenuTitle.contains(pluginName))
+        for title in TotalSegmentatorHorosPlugin.menuTitles {
+            XCTAssertTrue(title.contains(TotalSegmentatorHorosPlugin.pluginDisplayName))
+        }
     }
 
     func test_menuTitles_areDistinct() {
-        let titles = [settingsMenuTitle, runMenuTitle, toolbarMenuTitle]
+        let titles = TotalSegmentatorHorosPlugin.menuTitles
         XCTAssertEqual(Set(titles).count, titles.count, "All menu titles must be unique")
     }
 
-    // Regression: filterImage returns 0 for all known and unknown actions.
-    // Verified via the implementation: the function always `return 0`.
-    func test_filterImage_alwaysReturnsZero_isDocumented() {
-        // This test documents the contract even without being able to call the method
-        // directly (requires Horos.framework).  The return value is specified in the
-        // docstring added in this PR: "Returns: An integer status code (always 0)."
-        let expectedReturnValue = 0
-        XCTAssertEqual(expectedReturnValue, 0)
+    func test_filterImage_returnValueRequiresHorosRuntime() throws {
+        // Plugin.swift documents filterImage(_:) as returning 0 for every dispatch path,
+        // but calling it here presents Horos/AppKit UI and requires the plugin runtime.
+        throw XCTSkip("filterImage(_:) requires the Horos plugin runtime; see Plugin.swift filterImage(_:) documentation.")
     }
 }
 
@@ -190,38 +177,13 @@ final class PluginMenuActionStringTests: XCTestCase {
 
 final class PluginOptionListTests: XCTestCase {
 
-    // Replicated from Plugin.swift to test the expected shape without needing to
-    // instantiate TotalSegmentatorHorosPlugin (which requires Horos.framework).
-    let taskOptions: [(title: String, value: String?)] = [
-        ("Automatic (default)", nil),
-        ("Total (multi-organ)", "total"),
-        ("Total (fast)", "total_fast"),
-        ("Lung", "lung"),
-        ("Lung (vessels)", "lung_vessels"),
-        ("Heart", "heart"),
-        ("Head & Neck", "headneck"),
-        ("Cerebral Bleed", "cerebral_bleed"),
-        ("Femur", "femur"),
-        ("Hip", "hip"),
-        ("Kidneys", "kidney"),
-        ("Liver", "liver"),
-        ("Pelvis", "pelvis"),
-        ("Prostate", "prostate"),
-        ("Spleen", "spleen"),
-        ("Spine (vertebrae)", "vertebrae"),
-        ("Body (fat & muscles)", "body"),
-        ("Brain (structures)", "brain"),
-        ("Cardiac (chambers)", "cardiac"),
-        ("Coronary Arteries", "coronary_arteries"),
-        ("Pancreas", "pancreas")
-    ]
+    private var taskOptions: [(title: String, value: String?)] {
+        TotalSegmentatorHorosPlugin.canonicalTaskOptions
+    }
 
-    let deviceOptions: [(title: String, value: String?)] = [
-        ("Auto", nil),
-        ("cpu", "cpu"),
-        ("gpu", "gpu"),
-        ("mps", "mps")
-    ]
+    private var deviceOptions: [(title: String, value: String?)] {
+        TotalSegmentatorHorosPlugin.canonicalDeviceOptions
+    }
 
     // MARK: Task Options
 

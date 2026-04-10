@@ -11,6 +11,48 @@ import XCTest
 
 final class SegmentationProgressWindowControllerTests: XCTestCase {
 
+    private func cancelButton(in controller: SegmentationProgressWindowController) -> NSButton? {
+        controller.window?.contentView?.subviews
+            .compactMap { $0 as? NSButton }
+            .first(where: { $0.title == "Cancel" })
+    }
+
+    private func waitUntil(
+        _ description: String,
+        timeout: TimeInterval = 1.0,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        predicate: @escaping () -> Bool
+    ) {
+        if predicate() {
+            return
+        }
+
+        let expectation = expectation(description: description)
+        var isDone = false
+        func poll() {
+            guard !isDone else { return }
+            if predicate() {
+                isDone = true
+                expectation.fulfill()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                    poll()
+                }
+            }
+        }
+
+        DispatchQueue.main.async {
+            poll()
+        }
+        wait(for: [expectation], timeout: timeout)
+
+        if !predicate() {
+            isDone = true
+            XCTFail(description, file: file, line: line)
+        }
+    }
+
     // MARK: - Initialization
 
     func test_init_windowIsNilBeforeFirstUse() {
@@ -114,9 +156,9 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
     func test_start_doesNotCrash() {
         let controller = SegmentationProgressWindowController()
         controller.start()
-        // Ensure any async dispatch settles
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-        XCTAssertNotNil(controller.window)
+        waitUntil("SegmentationProgressWindowControllerTests: window not created") {
+            controller.window != nil
+        }
     }
 
     // MARK: - Append
@@ -124,7 +166,9 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
     func test_append_onMainThread_doesNotCrash() {
         let controller = SegmentationProgressWindowController()
         controller.append("Hello")
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        waitUntil("SegmentationProgressWindowControllerTests: window not created after append") {
+            controller.window != nil
+        }
     }
 
     func test_append_fromBackgroundThread_doesNotCrash() {
@@ -135,7 +179,9 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
             expectation.fulfill()
         }
         waitForExpectations(timeout: 1.0)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        waitUntil("SegmentationProgressWindowControllerTests: window not created after background append") {
+            controller.window != nil
+        }
     }
 
     func test_append_multipleMessages_doesNotCrash() {
@@ -143,19 +189,25 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
         for i in 0..<20 {
             controller.append("Line \(i)")
         }
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        waitUntil("SegmentationProgressWindowControllerTests: window not created after multiple appends") {
+            controller.window != nil
+        }
     }
 
     func test_append_emptyString_doesNotCrash() {
         let controller = SegmentationProgressWindowController()
         controller.append("")
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        waitUntil("SegmentationProgressWindowControllerTests: window not created after empty append") {
+            controller.window != nil
+        }
     }
 
     func test_append_stringAlreadyWithNewline_doesNotCrash() {
         let controller = SegmentationProgressWindowController()
         controller.append("already has newline\n")
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        waitUntil("SegmentationProgressWindowControllerTests: window not created after newline append") {
+            controller.window != nil
+        }
     }
 
     // MARK: - Cancel Handler
@@ -164,10 +216,10 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
         let controller = SegmentationProgressWindowController()
         controller.showWindow(nil)
         controller.setCancelHandler { /* no-op: handler presence is what matters here */ }
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-        let cancelButton = controller.window?.contentView?.subviews
-            .compactMap { $0 as? NSButton }
-            .first(where: { $0.title == "Cancel" })
+        waitUntil("SegmentationProgressWindowControllerTests: cancel button not visible") {
+            self.cancelButton(in: controller)?.isHidden == false
+        }
+        let cancelButton = self.cancelButton(in: controller)
         XCTAssertFalse(cancelButton?.isHidden ?? true, "Cancel button should be visible after handler is set")
     }
 
@@ -175,12 +227,14 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
         let controller = SegmentationProgressWindowController()
         controller.showWindow(nil)
         controller.setCancelHandler { /* no-op */ }
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        waitUntil("SegmentationProgressWindowControllerTests: cancel button not enabled") {
+            self.cancelButton(in: controller)?.isEnabled == true
+        }
         controller.markProcessFinished()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-        let cancelButton = controller.window?.contentView?.subviews
-            .compactMap { $0 as? NSButton }
-            .first(where: { $0.title == "Cancel" })
+        waitUntil("SegmentationProgressWindowControllerTests: cancel button not disabled") {
+            self.cancelButton(in: controller)?.isEnabled == false
+        }
+        let cancelButton = self.cancelButton(in: controller)
         XCTAssertFalse(cancelButton?.isEnabled ?? true, "Cancel button should be disabled after markProcessFinished()")
     }
 
@@ -192,16 +246,19 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
         controller.close()
     }
 
-    func test_close_fromBackgroundThread_doesNotCrash() {
+    func test_close_fromBackgroundThread_doesNotCrash() throws {
         let controller = SegmentationProgressWindowController()
         controller.showWindow(nil)
+        let closeExpectation = expectation(
+            forNotification: NSWindow.willCloseNotification,
+            object: try XCTUnwrap(controller.window)
+        )
         let expectation = self.expectation(description: "background close")
         DispatchQueue.global().async {
             controller.close()
             expectation.fulfill()
         }
-        waitForExpectations(timeout: 1.0)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        wait(for: [expectation, closeExpectation], timeout: 1.0)
     }
 
     func test_closeAfterDelay_zeroDelay_closesImmediately() {
@@ -211,11 +268,15 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
         // No crash expected; window order may change
     }
 
-    func test_closeAfterDelay_smallDelay_doesNotCrash() {
+    func test_closeAfterDelay_smallDelay_doesNotCrash() throws {
         let controller = SegmentationProgressWindowController()
         controller.showWindow(nil)
+        let closeExpectation = expectation(
+            forNotification: NSWindow.willCloseNotification,
+            object: try XCTUnwrap(controller.window)
+        )
         controller.close(after: 0.01)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        wait(for: [closeExpectation], timeout: 1.0)
     }
 
     // MARK: - Thread Safety: performOnMain
@@ -237,8 +298,8 @@ final class SegmentationProgressWindowControllerTests: XCTestCase {
             expectation.fulfill()
         }
         waitForExpectations(timeout: 1.0)
-        // Allow main-thread work to settle
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-        XCTAssertNotNil(controller.window)
+        waitUntil("SegmentationProgressWindowControllerTests: window not created from background start") {
+            controller.window != nil
+        }
     }
 }

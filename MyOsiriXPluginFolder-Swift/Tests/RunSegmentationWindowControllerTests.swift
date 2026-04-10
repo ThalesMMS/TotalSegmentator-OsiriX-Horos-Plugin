@@ -136,25 +136,25 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
 
     func test_fallbackOutputPath_isNonEmpty() {
         let controller = RunSegmentationWindowController()
-        XCTAssertFalse(controller.fallbackOutputPathForTesting.isEmpty)
+        XCTAssertFalse(controller.fallbackOutputPath.isEmpty)
     }
 
     func test_fallbackOutputPath_doesNotContainTilde() {
         // The tilde should have been expanded
         let controller = RunSegmentationWindowController()
-        XCTAssertFalse(controller.fallbackOutputPathForTesting.contains("~"),
+        XCTAssertFalse(controller.fallbackOutputPath.contains("~"),
                        "Fallback path should have the tilde expanded")
     }
 
     func test_fallbackOutputPath_containsExpectedSubpath() {
         let controller = RunSegmentationWindowController()
-        XCTAssertTrue(controller.fallbackOutputPathForTesting.contains("TotalSegmentator"),
+        XCTAssertTrue(controller.fallbackOutputPath.contains("TotalSegmentator"),
                       "Fallback path should contain 'TotalSegmentator'")
     }
 
     func test_fallbackOutputPath_isAbsolutePath() {
         let controller = RunSegmentationWindowController()
-        XCTAssertTrue(controller.fallbackOutputPathForTesting.hasPrefix("/"),
+        XCTAssertTrue(controller.fallbackOutputPath.hasPrefix("/"),
                       "Fallback path must be an absolute file-system path")
     }
 
@@ -166,16 +166,13 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         XCTAssertFalse(controller.isWindowLoaded)
     }
 
-    func test_init_hasConfiguredOptions_isFalseBeforeWindowLoad() {
-        // hasConfiguredOptions starts as false; it becomes true only after the window
-        // is loaded and applyConfiguration() populates the pop-up menus for the first time.
-        // We verify indirectly: setting configuration before the window loads must not
-        // prevent a subsequent applyConfiguration call from populating menus.
+    func test_init_settingConfigurationBeforeWindowLoad_doesNotLoadWindow() {
         let controller = RunSegmentationWindowController()
-        // The flag is private, but we can verify the observable side-effect: assigning
-        // configuration before window load should succeed without crashing.
-        controller.configuration = makeConfiguration()
-        XCTAssertNotNil(controller.configuration)
+        let configuration = makeConfiguration(classSummaryText: "queued configuration")
+        controller.configuration = configuration
+
+        XCTAssertFalse(controller.isWindowLoaded)
+        XCTAssertEqual(controller.configuration?.classSummaryText, "queued configuration")
     }
 
     func test_init_onCompletionIsNilByDefault() {
@@ -279,16 +276,5 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         var state = makePreferencesState(task: "original")
         state.task = "updated"
         XCTAssertEqual(state.task, "updated")
-    }
-}
-
-// MARK: - Test-only extensions
-
-extension RunSegmentationWindowController {
-    /// Exposes the private `fallbackOutputPath` computation for unit tests.
-    /// The value mirrors what the controller's stored `fallbackOutputPath` property computes.
-    var fallbackOutputPathForTesting: String {
-        let base = "~/temp/TotalSegmentator"
-        return (base as NSString).expandingTildeInPath
     }
 }

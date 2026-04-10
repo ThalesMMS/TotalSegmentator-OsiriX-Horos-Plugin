@@ -15,7 +15,7 @@ import Cocoa
 final class RunSegmentationWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
     typealias PreferencesState = TotalSegmentatorHorosPlugin.SegmentationPreferences.State
 
-    private let fallbackOutputPath: String = {
+    private(set) var fallbackOutputPath: String = {
         let base = "~/temp/TotalSegmentator"
         return (base as NSString).expandingTildeInPath
     }()

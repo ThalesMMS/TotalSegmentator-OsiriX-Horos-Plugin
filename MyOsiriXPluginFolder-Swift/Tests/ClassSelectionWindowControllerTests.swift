@@ -13,122 +13,124 @@ final class ClassSelectionWindowControllerTests: XCTestCase {
 
     // MARK: - Initialization
 
-    func test_init_noAvailableClasses_producesZeroRows() {
+    func test_init_noAvailableClasses_producesZeroRows() throws {
         let controller = ClassSelectionWindowController(availableClasses: [], preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 0)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 0)
     }
 
-    func test_init_allClassesVisible_whenNoPreselectionProvided() {
+    func test_init_allClassesVisible_whenNoPreselectionProvided() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
-    func test_init_allClassesVisible_whenAllPreselected() {
+    func test_init_allClassesVisible_whenAllPreselected() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: classes)
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
-    func test_init_singleClass_isVisible() {
+    func test_init_singleClass_isVisible() throws {
         let controller = ClassSelectionWindowController(availableClasses: ["aorta"], preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_init_duplicateClasses_preservesDuplicates() {
+    func test_init_duplicateClasses_preservesDuplicates() throws {
         let classes = ["liver", "liver", "spleen"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
     // MARK: - Row Height
 
-    func test_rowHeight_isPositive() {
+    func test_rowHeight_isPositive() throws {
         let controller = ClassSelectionWindowController(availableClasses: ["liver"], preselected: [])
-        let height = controller.tableView(controller.tableView, heightOfRow: 0)
+        let tableView = try controller.tableView()
+        let height = controller.tableView(tableView, heightOfRow: 0)
         XCTAssertGreaterThan(height, 0)
     }
 
-    func test_rowHeight_isConsistentAcrossRows() {
+    func test_rowHeight_isConsistentAcrossRows() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        let heights = (0..<3).map { controller.tableView(controller.tableView, heightOfRow: $0) }
+        let tableView = try controller.tableView()
+        let heights = (0..<3).map { controller.tableView(tableView, heightOfRow: $0) }
         XCTAssertEqual(Set(heights).count, 1, "All rows should have the same height")
     }
 
     // MARK: - Filtering
 
-    func test_filter_emptyString_showsAllItems() {
+    func test_filter_emptyString_showsAllItems() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
-    func test_filter_exactMatch_showsOneItem() {
+    func test_filter_exactMatch_showsOneItem() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "liver")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_filter_partialMatch_showsMatchingItems() {
+    func test_filter_partialMatch_showsMatchingItems() throws {
         let classes = ["liver", "spleen", "live_wire"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "live")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 2)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 2)
     }
 
-    func test_filter_caseInsensitive_matchesUppercase() {
+    func test_filter_caseInsensitive_matchesUppercase() throws {
         let classes = ["Liver", "Spleen", "Kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "liver")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_filter_caseInsensitive_matchesLowercase() {
+    func test_filter_caseInsensitive_matchesLowercase() throws {
         let classes = ["LIVER", "SPLEEN", "KIDNEY"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "KIDNEY")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_filter_diacriticInsensitive_matchesAccentedCharacters() {
+    func test_filter_diacriticInsensitive_matchesAccentedCharacters() throws {
         let classes = ["hépatique", "splénique", "rénale"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "hepatique")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_filter_diacriticInsensitive_accentedQueryMatchesPlain() {
+    func test_filter_diacriticInsensitive_accentedQueryMatchesPlain() throws {
         let classes = ["hepatique", "splenique"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "hépatique")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 
-    func test_filter_noMatch_producesZeroRows() {
+    func test_filter_noMatch_producesZeroRows() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "pancreas")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 0)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 0)
     }
 
-    func test_filter_whitespaceOnly_showsAllItems() {
+    func test_filter_whitespaceOnly_showsAllItems() throws {
         // Whitespace is trimmed before applying the filter
         let classes = ["liver", "spleen"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "   ")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
-    func test_filter_clearedAfterActive_restoresAllRows() {
+    func test_filter_clearedAfterActive_restoresAllRows() throws {
         let classes = ["liver", "spleen", "kidney"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "liver")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
         controller.applyFilterForTesting(query: "")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
     // MARK: - Selection Confirmation
@@ -292,7 +294,7 @@ final class ClassSelectionWindowControllerTests: XCTestCase {
 
     func test_init_windowHasCorrectTitle() {
         let controller = ClassSelectionWindowController(availableClasses: [], preselected: [])
-        XCTAssertNotNil(controller.window)
+        XCTAssertEqual(controller.window?.title, "Select Classes")
     }
 
     func test_init_windowIsNotNil() {
@@ -307,32 +309,33 @@ final class ClassSelectionWindowControllerTests: XCTestCase {
 
     // MARK: - Table View Data Source
 
-    func test_numberOfRows_matchesAvailableClassesCount() {
+    func test_numberOfRows_matchesAvailableClassesCount() throws {
         let classes = ["liver", "spleen", "kidney", "aorta", "heart"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), classes.count)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), classes.count)
     }
 
-    func test_tableView_returnsNonNilViewForValidRow() {
+    func test_tableView_returnsNonNilViewForValidRow() throws {
         let classes = ["liver", "spleen"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        let view = controller.tableView(controller.tableView, viewFor: nil, row: 0)
+        let tableView = try controller.tableView()
+        let view = controller.tableView(tableView, viewFor: nil, row: 0)
         XCTAssertNotNil(view)
     }
 
     // MARK: - Large Input
 
-    func test_init_largeClassList_allRowsVisible() {
+    func test_init_largeClassList_allRowsVisible() throws {
         let classes = (0..<100).map { "class_\($0)" }
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 100)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 100)
     }
 
-    func test_filter_onLargeList_returnsCorrectSubset() {
+    func test_filter_onLargeList_returnsCorrectSubset() throws {
         let classes = (0..<100).map { "class_\($0)" } + ["special_target"]
         let controller = ClassSelectionWindowController(availableClasses: classes, preselected: [])
         controller.applyFilterForTesting(query: "special")
-        XCTAssertEqual(controller.numberOfRows(in: controller.tableView), 1)
+        XCTAssertEqual(controller.numberOfRows(in: try controller.tableView()), 1)
     }
 }
 
@@ -355,7 +358,9 @@ extension ClassSelectionWindowController {
 
     /// Exposes the internal table view so row-count assertions can be made without
     /// reaching into private storage.
-    var tableView: NSTableView {
+    private struct TableViewLookupError: Error {}
+
+    func tableView(file: StaticString = #filePath, line: UInt = #line) throws -> NSTableView {
         // The table view is a stored property; reflect on it for test access.
         // Iterate subviews of the scroll view that is a child of the content view.
         if let contentView = window?.contentView {
@@ -366,7 +371,7 @@ extension ClassSelectionWindowController {
                 }
             }
         }
-        // Fallback: return a dummy table view (tests that rely on real rows would fail)
-        return NSTableView()
+        XCTFail("ClassSelectionWindowControllerTests: table view not found", file: file, line: line)
+        throw TableViewLookupError()
     }
 }
