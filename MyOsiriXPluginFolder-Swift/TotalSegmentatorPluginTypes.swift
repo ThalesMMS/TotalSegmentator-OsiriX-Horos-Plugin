@@ -134,6 +134,29 @@ enum ClassSelectionError: LocalizedError {
     }
 }
 
+enum ClassSelectionSummaryFormatter {
+    static func components(for names: [String]) -> (text: String, tooltip: String?) {
+        let sorted = names.sorted()
+        if sorted.isEmpty {
+            return (
+                NSLocalizedString("All classes", comment: "Summary shown when all classes are selected"),
+                nil
+            )
+        }
+
+        if sorted.count <= 3 {
+            let summary = sorted.joined(separator: ", ")
+            return (summary, summary)
+        }
+
+        let summaryText = String(
+            format: NSLocalizedString("%d classes selected", comment: "Summary with number of selected classes"),
+            sorted.count
+        )
+        return (summaryText, sorted.joined(separator: ", "))
+    }
+}
+
 struct SegmentationAuditEntry: Codable {
     struct SeriesInfo: Codable {
         let seriesInstanceUID: String?

@@ -51,6 +51,30 @@ extension TotalSegmentatorHorosPlugin {
             outputDirectory: (nil as URL?)
         )
 
+        controller.onLoadClasses = { [weak self] task, executable, completion in
+            guard let self = self else {
+                completion([])
+                return
+            }
+
+            self.loadClassOptions(for: task, executable: executable) { [weak self] result in
+                switch result {
+                case .success(let options):
+                    completion(options)
+                case .failure(let error):
+                    self?.presentAlert(
+                        title: "TotalSegmentator",
+                        message: error.localizedDescription
+                    )
+                    completion([])
+                }
+            }
+        }
+
+        controller.onCheckTaskSupportsClassSelection = { [weak self] task in
+            self?.supportsClassSelection(for: task) ?? false
+        }
+
         controller.onCompletion = { [weak self] result in
             guard let self = self else { return }
 

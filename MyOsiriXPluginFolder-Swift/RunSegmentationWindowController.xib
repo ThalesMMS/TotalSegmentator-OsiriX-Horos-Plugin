@@ -13,6 +13,7 @@
                 <outlet property="launchButton" destination="tL4-7f-8I6" id="xb0-RF-qdk"/>
                 <outlet property="licenseField" destination="S4L-MA-fjX" id="9it-0q-lgh"/>
                 <outlet property="outputPathField" destination="lQ7-4Z-HvA" id="yIV-df-kBf"/>
+                <outlet property="selectClassesButton" destination="Vf9-cp-k7Q" id="bI2-7X-Yo8"/>
                 <outlet property="taskPopupButton" destination="jTp-n9-g5S" id="c3c-Bf-V9h"/>
                 <outlet property="window" destination="1" id="V77-qq-IGC"/>
             </connections>
@@ -45,6 +46,9 @@
                                 </items>
                             </menu>
                         </popUpButtonCell>
+                        <connections>
+                            <action selector="taskSelectionChanged:" target="-2" id="s5S-rL-Lwd"/>
+                        </connections>
                     </popUpButton>
                     <textField verticalHuggingPriority="251" id="W8b-vp-DdO">
                         <rect key="frame" x="20" y="214" width="100" height="17"/>
@@ -82,12 +86,22 @@
                         </textFieldCell>
                     </textField>
                     <textField id="g28-vZ-pow">
-                        <rect key="frame" x="140" y="134" width="320" height="22"/>
+                        <rect key="frame" x="140" y="134" width="198" height="22"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                         <textFieldCell key="cell" controlSize="small" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" placeholderString="All classes" id="Ylm-7L-DkG">
                             <font key="font" metaFont="system" size="13"/>
                         </textFieldCell>
                     </textField>
+                    <button verticalHuggingPriority="251" id="Vf9-cp-k7Q">
+                        <rect key="frame" x="346" y="129" width="114" height="32"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                        <buttonCell key="cell" type="push" title="Select Classes…" bezelStyle="rounded" controlSize="small" font="system" id="Pa6-zy-pbt">
+                            <font key="font" metaFont="system" size="13"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="selectClasses:" target="-2" id="ua7-Ps-CKl"/>
+                        </connections>
+                    </button>
                     <textField verticalHuggingPriority="251" id="fpx-Q0-dVg">
                         <rect key="frame" x="20" y="100" width="100" height="17"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>

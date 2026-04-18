@@ -27,3 +27,5 @@ unittest_prediction_fast_force_split.nii.gz
 *.log
 *.ipynb
 /horosplugins-master
+AGENTS.md
+CLAUDE.md

@@ -157,7 +157,11 @@ extension TotalSegmentatorHorosPlugin {
         updated.additionalArguments = additionalArgs?.isEmpty == false ? additionalArgs : nil
         let licenseKey = licenseKeyField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.licenseKey = licenseKey?.isEmpty == false ? licenseKey : nil
-        updated.selectedClassNames = Array(selectedClassNames).sorted()
+        if supportsClassSelection(for: updated.task) {
+            updated.selectedClassNames = Array(selectedClassNames).sorted()
+        } else {
+            updated.selectedClassNames = []
+        }
 
         preferences.store(updated)
 

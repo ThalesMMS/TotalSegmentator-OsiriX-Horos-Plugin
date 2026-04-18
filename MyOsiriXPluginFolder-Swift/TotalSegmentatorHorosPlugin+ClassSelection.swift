@@ -9,8 +9,7 @@ extension TotalSegmentatorHorosPlugin {
     @IBAction func selectClasses(_ sender: Any) {
         guard settingsWindow != nil else { return }
 
-        let storedPreferences = self.preferences.effectivePreferences()
-        var effectivePreferences = storedPreferences
+        var effectivePreferences = self.preferences.effectivePreferences()
 
         if let pathValue = executablePathField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), !pathValue.isEmpty {
             effectivePreferences.executablePath = pathValue
@@ -20,24 +19,55 @@ extension TotalSegmentatorHorosPlugin {
             effectivePreferences.task = taskValue
         }
 
-        let normalizedTask = effectivePreferences.task?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let taskKey = (normalizedTask?.isEmpty == false ? normalizedTask! : "__default__")
+        classSelectionButton?.isEnabled = false
 
-        if let cached = availableClassOptionsCache[taskKey] {
-            presentClassSelectionWindow(with: cached, preselected: selectedClassNames)
-            return
+        loadClassOptions(
+            for: effectivePreferences.task,
+            executable: effectivePreferences.executablePath
+        ) { [weak self] result in
+            guard let self = self else { return }
+            self.classSelectionButton?.isEnabled = true
+
+            switch result {
+            case .success(let options):
+                self.presentClassSelectionWindow(with: options, preselected: self.selectedClassNames)
+            case .failure(let error):
+                self.presentAlert(
+                    title: "TotalSegmentator",
+                    message: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    func loadClassOptions(
+        for task: String?,
+        executable executablePath: String?,
+        completion: @escaping (Swift.Result<[String], Error>) -> Void
+    ) {
+        var effectivePreferences = preferences.effectivePreferences()
+
+        if let pathValue = executablePath?.trimmingCharacters(in: .whitespacesAndNewlines), !pathValue.isEmpty {
+            effectivePreferences.executablePath = pathValue
         }
 
-        classSelectionButton?.isEnabled = false
+        let normalizedTask = task?.trimmingCharacters(in: .whitespacesAndNewlines)
+        effectivePreferences.task = normalizedTask?.isEmpty == false ? normalizedTask : nil
+
+        let taskKey = classOptionsCacheKey(for: normalizedTask)
+        if let cached = availableClassOptionsCache[taskKey] {
+            DispatchQueue.main.async {
+                completion(.success(cached))
+            }
+            return
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             guard let executableResolution = self.resolvePythonInterpreter(using: effectivePreferences) else {
                 DispatchQueue.main.async {
-                    self.classSelectionButton?.isEnabled = true
-                    self.presentAlert(
-                        title: "TotalSegmentator",
-                        message: "Unable to locate a Python interpreter. Please verify the executable path before selecting classes."
-                    )
+                    completion(.failure(ClassSelectionError.retrievalFailed(
+                        "Unable to locate a Python interpreter. Please verify the executable path before selecting classes."
+                    )))
                 }
                 return
             }
@@ -47,22 +77,25 @@ extension TotalSegmentatorHorosPlugin {
                     for: normalizedTask,
                     executable: executableResolution
                 )
-                self.availableClassOptionsCache[taskKey] = options
 
                 DispatchQueue.main.async {
-                    self.classSelectionButton?.isEnabled = true
-                    self.presentClassSelectionWindow(with: options, preselected: self.selectedClassNames)
+                    self.availableClassOptionsCache[taskKey] = options
+                    completion(.success(options))
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.classSelectionButton?.isEnabled = true
-                    self.presentAlert(
-                        title: "TotalSegmentator",
-                        message: error.localizedDescription
-                    )
+                    completion(.failure(error))
                 }
             }
         }
+    }
+
+    private func classOptionsCacheKey(for task: String?) -> String {
+        if let normalized = task?.trimmingCharacters(in: .whitespacesAndNewlines), !normalized.isEmpty {
+            return normalized
+        }
+
+        return "__default__"
     }
 
     func presentClassSelectionWindow(with options: [String], preselected: Set<String>) {
@@ -185,24 +218,7 @@ else:
     }
 
     func classSelectionSummaryComponents(for names: [String]) -> (text: String, tooltip: String?) {
-        let sorted = names.sorted()
-        if sorted.isEmpty {
-            return (
-                NSLocalizedString("All classes", comment: "Summary shown when all classes are selected"),
-                nil
-            )
-        }
-
-        if sorted.count <= 3 {
-            let summary = sorted.joined(separator: ", ")
-            return (summary, summary)
-        }
-
-        let summaryText = String(
-            format: NSLocalizedString("%d classes selected", comment: "Summary with number of selected classes"),
-            sorted.count
-        )
-        return (summaryText, sorted.joined(separator: ", "))
+        return ClassSelectionSummaryFormatter.components(for: names)
     }
 
     func updateClassSelectionSummary() {

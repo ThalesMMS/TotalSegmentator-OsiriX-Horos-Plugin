@@ -38,12 +38,14 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
     @IBOutlet private weak var devicePopupButton: NSPopUpButton!
     @IBOutlet private weak var fastModeCheckbox: NSButton!
     @IBOutlet private weak var classSummaryField: NSTextField!
-    @IBOutlet private weak var licenseField: NSTextField!
-    @IBOutlet private weak var outputPathField: NSTextField!
-    @IBOutlet private weak var launchButton: NSButton!
+    @IBOutlet private var selectClassesButton: NSButton!
+    @IBOutlet private var licenseField: NSTextField!
+    @IBOutlet private var outputPathField: NSTextField!
+    @IBOutlet private var launchButton: NSButton!
 
     var configuration: Configuration? {
         didSet {
+            localSelectedClassNames = Set(configuration?.preferences.selectedClassNames ?? [])
             if isWindowLoaded {
                 applyConfiguration()
             }
@@ -51,8 +53,20 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
     }
 
     var onCompletion: ((Result?) -> Void)?
+    var onLoadClasses: ((_ task: String?, _ executable: String?, _ completion: @escaping ([String]) -> Void) -> Void)?
+    var onCheckTaskSupportsClassSelection: ((_ task: String?) -> Bool)?
+
+    var localSelectedClassNames: Set<String> = [] {
+        didSet {
+            if isWindowLoaded {
+                updateClassSelectionSummary()
+            }
+        }
+    }
 
     private var hasConfiguredOptions = false
+    private var classSelectionController: ClassSelectionWindowController?
+    private var currentClassLoadRequestID: UUID?
 
     init() {
         super.init(window: nil)
@@ -109,6 +123,11 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         updateLaunchButtonState()
     }
 
+    @IBAction private func taskSelectionChanged(_ sender: Any) {
+        currentClassLoadRequestID = nil
+        updateClassSelectionPresentation()
+    }
+
     @IBAction private func chooseOutputDirectory(_ sender: Any) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -128,6 +147,70 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         } else if panel.runModal() == .OK, let url = panel.url {
             outputPathField?.stringValue = url.path
             updateLaunchButtonState()
+        }
+    }
+
+    @IBAction private func selectClasses(_ sender: Any) {
+        let requestedTask = currentSelectedTask()
+        if onCheckTaskSupportsClassSelection?(requestedTask) == false {
+            restoreSelectClassesButtonState()
+            NSSound.beep()
+            return
+        }
+
+        guard let window = self.window,
+              let onLoadClasses = onLoadClasses else {
+            restoreSelectClassesButtonState()
+            NSSound.beep()
+            return
+        }
+
+        let requestID = UUID()
+        currentClassLoadRequestID = requestID
+        selectClassesButton?.isEnabled = false
+        let executable = configuration?.preferences.executablePath
+
+        onLoadClasses(requestedTask, executable) { [weak self] classes in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard self.currentClassLoadRequestID == requestID else {
+                    return
+                }
+                defer { self.restoreSelectClassesButtonState() }
+
+                guard self.currentSelectedTask() == requestedTask else {
+                    self.currentClassLoadRequestID = nil
+                    return
+                }
+
+                self.currentClassLoadRequestID = nil
+
+                guard !classes.isEmpty else {
+                    NSSound.beep()
+                    return
+                }
+
+                let controller = ClassSelectionWindowController(
+                    availableClasses: classes,
+                    preselected: Array(self.localSelectedClassNames)
+                )
+
+                controller.onSelectionConfirmed = { [weak self] selection in
+                    guard let self = self else { return }
+                    self.localSelectedClassNames = Set(selection)
+                    self.classSelectionController = nil
+                    self.updateClassSelectionPresentation()
+                }
+
+                controller.onSelectionCancelled = { [weak self] in
+                    guard let self = self else { return }
+                    self.classSelectionController = nil
+                    self.updateClassSelectionPresentation()
+                }
+
+                self.classSelectionController = controller
+                window.beginSheet(controller.window!, completionHandler: nil)
+            }
         }
     }
 
@@ -176,12 +259,11 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         selectItem(in: devicePopupButton, matching: configuration.preferences.device)
         fastModeCheckbox?.state = configuration.preferences.useFast ? .on : .off
 
-        classSummaryField?.stringValue = configuration.classSummaryText
-        classSummaryField?.toolTip = configuration.classSummaryTooltip
         classSummaryField?.isEditable = false
         classSummaryField?.isSelectable = false
         classSummaryField?.usesSingleLineMode = true
         classSummaryField?.lineBreakMode = .byTruncatingTail
+        updateClassSelectionPresentation()
 
         let license = configuration.preferences.licenseKey ?? ""
         licenseField?.stringValue = license
@@ -232,8 +314,53 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
         let license = licenseField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         preferences.licenseKey = license.isEmpty ? nil : license
+        if taskSupportsClassSelection(preferences.task) {
+            preferences.selectedClassNames = Array(localSelectedClassNames).sorted()
+        } else {
+            preferences.selectedClassNames = []
+        }
 
         return preferences
+    }
+
+    private func currentSelectedTask() -> String? {
+        return taskPopupButton?.selectedItem?.representedObject as? String
+    }
+
+    private func taskSupportsClassSelection(_ task: String?) -> Bool {
+        return onCheckTaskSupportsClassSelection?(task) ?? true
+    }
+
+    private func updateClassSelectionPresentation() {
+        updateClassSelectionSummary()
+        updateClassSelectionControlState()
+    }
+
+    private func updateClassSelectionSummary() {
+        if !taskSupportsClassSelection(currentSelectedTask()) {
+            classSummaryField?.stringValue = NSLocalizedString(
+                "Class selection not supported",
+                comment: "Run sheet class summary shown for tasks without ROI subset support"
+            )
+            classSummaryField?.toolTip = NSLocalizedString(
+                "Only total tasks support --roi_subset.",
+                comment: "Run sheet class summary tooltip for unsupported ROI subset tasks"
+            )
+            return
+        }
+
+        let summary = ClassSelectionSummaryFormatter.components(for: Array(localSelectedClassNames))
+        classSummaryField?.stringValue = summary.text
+        classSummaryField?.toolTip = summary.tooltip
+    }
+
+    private func updateClassSelectionControlState() {
+        let task = currentSelectedTask()
+        selectClassesButton?.isEnabled = taskSupportsClassSelection(task)
+    }
+
+    private func restoreSelectClassesButtonState() {
+        updateClassSelectionPresentation()
     }
 
     private func resolveOutputDirectoryIfProvided() -> URL? {

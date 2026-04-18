@@ -1,12 +1,17 @@
 # TotalSegmentator OsiriX/Horos Plugin
 
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue.svg)
+![Host app Horos or OsiriX](https://img.shields.io/badge/Host-Horos%20%2F%20OsiriX-6f42c1.svg)
+![Python 3.9+ or 3.13](https://img.shields.io/badge/Python-3.9%2B%20or%203.13-3776AB.svg)
+![License Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)
+
 ---
 
 ## Overview
 
-This project brings the [TotalSegmentator](https://github.com/wasserth/TotalSegmentator) pipeline into Horos/OsiriX via a native plugin. It exports the active series, launches the segmentation in Python (nnUNet/TotalSegmentator), re-imports the outputs as RT-Struct, and reapplies the ROIs to the current Horos viewer.
+This private development repository packages the [TotalSegmentator](https://github.com/wasserth/TotalSegmentator) pipeline as a macOS Horos/OsiriX plugin for DICOM studies. It exports the active CT or MR series, runs the Python TotalSegmentator and nnUNet segmentation flow, then re-imports the generated results as RT-Struct overlays in the current viewer.
 
-The repository still ships the official TotalSegmentator sources (`totalsegmentator/`) because the plugin reuses internal scripts and helpers, but the primary focus of this fork is the Horos plugin.
+The repository still ships the upstream `totalsegmentator/` sources because the plugin reuses internal scripts and helpers, but the main purpose here is the native Swift plugin, the host-app bridge, and the packaging flow for Horos and OsiriX.
 
 ---
 
@@ -23,11 +28,17 @@ The repository still ships the official TotalSegmentator sources (`totalsegmenta
 
 ## Downloadable Builds
 
-Need a prebuilt bundle? Grab the latest debug build directly from this repository:
+Need a prebuilt bundle? The checked-in packaged artifacts currently present in `Releases/` are:
 
-- [TotalSegmentatorHorosPlugin.osirixplugin](Releases/TotalSegmentatorHorosPlugin.osirixplugin)
+- [Horos debug package (2026-01-08)](Releases/TotalSegmentatorPlugin%20Horos%202026%2001%2008.osirixplugin.zip)
+- [OsiriX debug package (2026-01-08)](Releases/TotalSegmentatorPlugin%20OsiriX%202026%2001%2008.osirixplugin.zip)
 
-To install, copy the downloaded `.osirixplugin` bundle into `~/Library/Application Support/Horos/Plugins/`, run `codesign --force --deep --sign -` on it (or sign with your certificate), and relaunch Horos. On first launch the plugin provisions its Python environment automatically; no additional files are required beyond Horos, a compatible macOS version, and an internet connection to fetch TotalSegmentator weights when needed.
+Unzip the package first, then copy the extracted `.osirixplugin` bundle into the matching plugin folder:
+
+- Horos: `~/Library/Application Support/Horos/Plugins/`
+- OsiriX: `~/Library/Application Support/OsiriX/Plugins/`
+
+After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplugin"` if you need an ad-hoc local signature, then relaunch the host app. On first launch the plugin provisions its Python environment automatically; no additional files are required beyond Horos or OsiriX, a compatible macOS version, and an internet connection to fetch TotalSegmentator weights when needed.
 
 ---
 
@@ -55,30 +66,33 @@ To install, copy the downloaded `.osirixplugin` bundle into `~/Library/Applicati
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/ThalesMMS/TotalSegmentator-Horos-Plugin.git
-   cd TotalSegmentator-Horos-Plugin
+   git clone https://github.com/ThalesMMS/TotalSegmentator-OsiriX-Horos-Plugin.git
+   cd TotalSegmentator-OsiriX-Horos-Plugin
    ```
 
-2. **Build the plugin**
+2. **Confirm the Xcode project is visible**
    ```bash
-   xcodebuild \
-     -project MyOsiriXPluginFolder-Swift/TotalSegmentatorHorosPlugin.xcodeproj \
-     -configuration Release \
-     -target TotalSegmentatorHorosPlugin \
-     build
+   xcodebuild -list -project MyOsiriXPluginFolder-Swift/TotalSegmentatorHorosPlugin.xcodeproj
    ```
 
-3. **Install into Horos**
+3. **Build with the helper script**
    ```bash
-   PLUGIN_SRC="MyOsiriXPluginFolder-Swift/build/Release/TotalSegmentatorHorosPlugin.osirixplugin"
+   ./build.sh horos --sign
+   # or: ./build.sh both --sign
+   ```
+
+4. **Install into Horos**
+   ```bash
    PLUGIN_DST="$HOME/Library/Application Support/Horos/Plugins/"
+   mkdir -p "$PLUGIN_DST"
 
-   rm -rf "$PLUGIN_DST/TotalSegmentatorHorosPlugin.osirixplugin"
-   cp -R "$PLUGIN_SRC" "$PLUGIN_DST"
-   codesign --force --deep --sign - "$PLUGIN_DST/TotalSegmentatorHorosPlugin.osirixplugin"
+   rm -rf "$PLUGIN_DST"/TotalSegmentatorPlugin*.osirixplugin
+   cp -R Releases/Horos/*.osirixplugin "$PLUGIN_DST"
    ```
 
-4. **Launch Horos** and confirm the entry under `Plugins ▸ Plugin Manager ▸ TotalSegmentator`.
+   For OsiriX builds, use `./build.sh osirix --sign` and copy from `Releases/Osirix/` into `~/Library/Application Support/OsiriX/Plugins/`.
+
+5. **Launch Horos** and confirm the entry under `Plugins ▸ Plugin Manager ▸ TotalSegmentator`.
 
 ---
 
@@ -129,6 +143,14 @@ totalsegmentator/               # Original TotalSegmentator codebase (reference)
 resources/                      # Artwork and diagrams inherited from upstream
 tests/                          # TotalSegmentator test suite (not plugin-specific yet)
 ```
+
+---
+
+## Related ThalesMMS Repositories
+
+- [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
+- [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
+- [`ThalesMMS/DICOM-Decoder`](https://github.com/ThalesMMS/DICOM-Decoder), a Swift DICOM decoder toolkit for viewers, PACS clients, and related imaging tools.
 
 ---
 

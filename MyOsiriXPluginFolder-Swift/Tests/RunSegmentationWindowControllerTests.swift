@@ -180,6 +180,12 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         XCTAssertNil(controller.onCompletion)
     }
 
+    func test_init_classLoadingCallbacksAreNilByDefault() {
+        let controller = RunSegmentationWindowController()
+        XCTAssertNil(controller.onLoadClasses)
+        XCTAssertNil(controller.onCheckTaskSupportsClassSelection)
+    }
+
     func test_init_configurationIsNilByDefault() {
         let controller = RunSegmentationWindowController()
         XCTAssertNil(controller.configuration)
@@ -200,11 +206,20 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         XCTAssertEqual(controller.configuration?.classSummaryText, "test summary")
     }
 
+    func test_settingConfiguration_initializesLocalSelectedClassNames() {
+        let controller = RunSegmentationWindowController()
+        let preferences = makePreferencesState(selectedClassNames: ["spleen", "liver"])
+        controller.configuration = makeConfiguration(preferences: preferences)
+
+        XCTAssertEqual(controller.localSelectedClassNames, Set(["spleen", "liver"]))
+    }
+
     func test_settingConfiguration_toNil_clearsPreviousValue() {
         let controller = RunSegmentationWindowController()
         controller.configuration = makeConfiguration()
         controller.configuration = nil
         XCTAssertNil(controller.configuration)
+        XCTAssertTrue(controller.localSelectedClassNames.isEmpty)
     }
 
     // MARK: - onCompletion Callback
@@ -236,6 +251,43 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         }
         controller.onCompletion?(nil)
         XCTAssertTrue(callbackFired)
+    }
+
+    func test_onLoadClasses_assignedCallbackDeliversClasses() {
+        let controller = RunSegmentationWindowController()
+        let expectation = expectation(description: "classes loaded")
+        var receivedTask: String?
+        var receivedExecutable: String?
+        var receivedClasses: [String] = []
+
+        controller.onLoadClasses = { task, executable, completion in
+            receivedTask = task
+            receivedExecutable = executable
+            completion(["liver", "spleen"])
+        }
+
+        controller.onLoadClasses?("total", "/usr/bin/python3") { classes in
+            receivedClasses = classes
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 1.0)
+        XCTAssertEqual(receivedTask, "total")
+        XCTAssertEqual(receivedExecutable, "/usr/bin/python3")
+        XCTAssertEqual(receivedClasses, ["liver", "spleen"])
+    }
+
+    func test_onCheckTaskSupportsClassSelection_assignedCallbackReturnsValue() {
+        let controller = RunSegmentationWindowController()
+        var receivedTask: String?
+
+        controller.onCheckTaskSupportsClassSelection = { task in
+            receivedTask = task
+            return task == "total"
+        }
+
+        XCTAssertEqual(controller.onCheckTaskSupportsClassSelection?("total"), true)
+        XCTAssertEqual(receivedTask, "total")
     }
 
     // MARK: - PreferencesState Values
