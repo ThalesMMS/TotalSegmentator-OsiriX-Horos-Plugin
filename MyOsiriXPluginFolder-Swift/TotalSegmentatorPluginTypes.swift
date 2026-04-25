@@ -10,6 +10,17 @@ import CoreData
 
 typealias ExecutableResolution = (executableURL: URL, leadingArguments: [String], environment: [String: String]?)
 
+struct TaskOption {
+    let title: String
+    let value: String?
+    let description: String
+}
+
+struct TaskGroup {
+    let name: String
+    let tasks: [TaskOption]
+}
+
 struct ProcessExecutionResult {
     let terminationStatus: Int32
     let stdout: Data
@@ -130,6 +141,32 @@ enum ClassSelectionError: LocalizedError {
             return "Received an unexpected response while loading available classes."
         case .noClassesAvailable:
             return "No selectable classes were returned for the current task."
+        }
+    }
+}
+
+enum Dcm2NiixBootstrapError: LocalizedError {
+    case cachedBinaryInvalid(expected: String)
+    case cachedBinaryRemovalFailed(expected: String)
+    case checksumUnavailable
+    case checksumMismatch(expected: String, actual: String)
+    case extractedBinaryMissing
+    case extractedBinaryChecksumMismatch
+
+    var errorDescription: String? {
+        switch self {
+        case .cachedBinaryInvalid(let expected):
+            return "Cached dcm2niix is invalid and cannot be used. Please retry bootstrap or install dcm2niix manually. Expected SHA-256 \(expected)."
+        case .cachedBinaryRemovalFailed(let expected):
+            return "Cached dcm2niix is invalid and could not be quarantined or removed, so bootstrapping was aborted. Please remove it manually or install dcm2niix yourself. Expected SHA-256 \(expected)."
+        case .checksumUnavailable:
+            return "The downloaded dcm2niix file could not be verified. The file may be corrupted or tampered with. Please retry or manually install dcm2niix."
+        case .checksumMismatch(let expected, let actual):
+            return "The downloaded dcm2niix file did not match the expected checksum. The file may be corrupted or tampered with. Please retry or manually install dcm2niix. Expected SHA-256 \(expected), actual SHA-256 \(actual)."
+        case .extractedBinaryMissing:
+            return "The verified dcm2niix archive did not contain the expected dcm2niix binary. Please install dcm2niix manually."
+        case .extractedBinaryChecksumMismatch:
+            return "The extracted dcm2niix binary did not match the expected checksum. The file may be corrupted or tampered with. Please retry or manually install dcm2niix."
         }
     }
 }

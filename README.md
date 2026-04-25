@@ -48,8 +48,6 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 
 ![Segmentation example 2](Screenshots/screenshot2.png)
 
-![TotalSegmentator plugin menu](Screenshots/screenshot3.png)
-
 ---
 
 ## Requirements
@@ -101,6 +99,7 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 1. Open a study and ensure the active series is 2D (CT or MR).
 2. Choose `Plugins ▸ TotalSegmentator ▸ Run TotalSegmentator`.
 3. Adjust the basic settings (task, device, output) and press **Run**.
+   The task picker groups targets by anatomy and shows helper text for the selected task. Use the **Fast mode** checkbox when you want the TotalSegmentator `--fast` path; the task picker only selects the anatomical task.
 4. Watch the progress window. On success the plugin:
    - imports the generated DICOM files,
    - builds the RT-Struct objects,
@@ -150,7 +149,7 @@ tests/                          # TotalSegmentator test suite (not plugin-specif
 
 - [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
 - [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
-- [`ThalesMMS/DICOM-Decoder`](https://github.com/ThalesMMS/DICOM-Decoder), a Swift DICOM decoder toolkit for viewers, PACS clients, and related imaging tools.
+- [`ThalesMMS/DICOM-Decoder-dev`](https://github.com/ThalesMMS/DICOM-Decoder-dev), a Swift DICOM decoder toolkit for viewers, PACS clients, and related imaging tools.
 
 ---
 

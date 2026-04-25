@@ -44,7 +44,7 @@ extension TotalSegmentatorHorosPlugin {
         let controller = RunSegmentationWindowController()
         controller.configuration = RunSegmentationWindowController.Configuration(
             preferences: effectivePreferences,
-            taskOptions: taskOptions,
+            taskGroups: taskGroups,
             deviceOptions: deviceOptions,
             classSummaryText: classSummary.text,
             classSummaryTooltip: classSummary.tooltip,

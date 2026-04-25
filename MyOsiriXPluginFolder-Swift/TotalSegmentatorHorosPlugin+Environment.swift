@@ -4,6 +4,19 @@
 //
 
 import Cocoa
+import CryptoKit
+
+private enum Dcm2NiixBootstrap {
+    // When updating the pinned dcm2niix version, download this exact archive,
+    // recompute both SHA-256 digests, and update all constants together.
+    static let pinnedVersion = "v1.0.20250506"
+    static let archiveName = "dcm2niix_mac.zip"
+    static var pinnedDcm2NiixDownloadURL: String {
+        "https://github.com/rordenlab/dcm2niix/releases/download/\(pinnedVersion)/\(archiveName)"
+    }
+    static let expectedDcm2NiixSHA256 = "6b66e0e83a3c62f8ad56df26e129234fb7424508dccf03525a1879e0291e52f1"
+    static let expectedBinarySHA256 = "d5ed1c549df2246e53875dfbd54d7ce7519c8a64f0c8f93c55edc7cb8e9d02e2"
+}
 
 extension TotalSegmentatorHorosPlugin {
     func performInitialSetupIfNeeded(displayProgress: Bool = false) {
@@ -403,7 +416,6 @@ import sys
 
 from pathlib import Path
 
-from totalsegmentator.dicom_io import download_dcm2niix
 from totalsegmentator.config import get_weights_dir
 
 
@@ -425,10 +437,6 @@ def locate():
 
 
 result = locate()
-if result is None:
-    download_dcm2niix()
-    result = locate()
-
 if result is None:
     print("__RESULT__" + json.dumps({"path": None}))
     sys.exit(1)
@@ -461,14 +469,20 @@ print("__RESULT__" + json.dumps({"path": result}))
             return path
         }
 
-        if let fallbackPath = attemptLocalDcm2NiixBootstrap(progressController: progressController) {
+        var dcm2niixBootstrapFailure: Dcm2NiixBootstrapError?
+        if let fallbackPath = attemptLocalDcm2NiixBootstrap(
+            progressController: progressController,
+            bootstrapFailure: &dcm2niixBootstrapFailure
+        ) {
             return fallbackPath
         }
 
         DispatchQueue.main.async {
             self.presentAlert(
                 title: "TotalSegmentator",
-                message: "dcm2niix could not be downloaded automatically. Please install it manually and ensure it is on the PATH."
+                message: dcm2niixBootstrapFailure.map { failure in
+                    "dcm2niix could not be prepared automatically. \(failure.localizedDescription)"
+                } ?? "dcm2niix could not be downloaded automatically. Verification failure is one possible cause; please retry later or install dcm2niix manually and ensure it is on the PATH."
             )
         }
         return nil
@@ -506,24 +520,51 @@ print("__RESULT__" + json.dumps({"path": result}))
         return directory
     }
 
-    private func attemptLocalDcm2NiixBootstrap(progressController: SegmentationProgressWindowController?) -> String? {
+    private func sha256(ofFileAt url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func attemptLocalDcm2NiixBootstrap(
+        progressController: SegmentationProgressWindowController?,
+        bootstrapFailure: inout Dcm2NiixBootstrapError?
+    ) -> String? {
         guard let supportDirectory = pluginSupportDirectory() else {
             return nil
         }
 
         let binaryURL = supportDirectory.appendingPathComponent("dcm2niix", isDirectory: false)
+        let quarantinedBinaryURL = supportDirectory.appendingPathComponent("dcm2niix.quarantined", isDirectory: false)
 
         if FileManager.default.isExecutableFile(atPath: binaryURL.path) {
-            progressController?.append("Using existing dcm2niix at \(binaryURL.path)")
-            return binaryURL.path
+            if sha256(ofFileAt: binaryURL) == Dcm2NiixBootstrap.expectedBinarySHA256 {
+                progressController?.append("Using existing pinned dcm2niix \(Dcm2NiixBootstrap.pinnedVersion) at \(binaryURL.path)")
+                return binaryURL.path
+            }
+            bootstrapFailure = .cachedBinaryInvalid(expected: Dcm2NiixBootstrap.expectedBinarySHA256)
+            try? FileManager.default.removeItem(at: quarantinedBinaryURL)
+            do {
+                try FileManager.default.moveItem(at: binaryURL, to: quarantinedBinaryURL)
+                progressController?.append("Cached dcm2niix is invalid and has been quarantined. A verified replacement will be downloaded. Expected SHA-256: \(Dcm2NiixBootstrap.expectedBinarySHA256).")
+            } catch {
+                do {
+                    try FileManager.default.removeItem(at: binaryURL)
+                    progressController?.append("Cached dcm2niix is invalid and has been removed. A verified replacement will be downloaded. Expected SHA-256: \(Dcm2NiixBootstrap.expectedBinarySHA256).")
+                } catch {
+                    bootstrapFailure = .cachedBinaryRemovalFailed(expected: Dcm2NiixBootstrap.expectedBinarySHA256)
+                    progressController?.append("Cached dcm2niix is invalid and cannot be quarantined or removed. It cannot be used; bootstrapping aborted.")
+                    return nil
+                }
+            }
         }
 
-        progressController?.append("Attempting local bootstrap of dcm2niix…")
+        progressController?.append("Attempting local bootstrap of pinned dcm2niix \(Dcm2NiixBootstrap.pinnedVersion)…")
 
-        let archiveURL = supportDirectory.appendingPathComponent("dcm2niix_macos.zip", isDirectory: false)
+        let archiveURL = supportDirectory.appendingPathComponent(Dcm2NiixBootstrap.archiveName, isDirectory: false)
         try? FileManager.default.removeItem(at: archiveURL)
 
-        guard let downloadURL = URL(string: "https://github.com/rordenlab/dcm2niix/releases/latest/download/dcm2niix_macos.zip") else {
+        guard let downloadURL = URL(string: Dcm2NiixBootstrap.pinnedDcm2NiixDownloadURL) else {
             progressController?.append("Unable to resolve dcm2niix download URL.")
             return nil
         }
@@ -563,6 +604,27 @@ print("__RESULT__" + json.dumps({"path": result}))
             return nil
         }
 
+        guard let actualArchiveSHA256 = sha256(ofFileAt: archiveURL) else {
+            bootstrapFailure = .checksumUnavailable
+            try? FileManager.default.removeItem(at: archiveURL)
+            progressController?.append(Dcm2NiixBootstrapError.checksumUnavailable.localizedDescription)
+            return nil
+        }
+
+        guard actualArchiveSHA256.caseInsensitiveCompare(Dcm2NiixBootstrap.expectedDcm2NiixSHA256) == .orderedSame else {
+            try? FileManager.default.removeItem(at: archiveURL)
+            let error = Dcm2NiixBootstrapError.checksumMismatch(
+                expected: Dcm2NiixBootstrap.expectedDcm2NiixSHA256,
+                actual: actualArchiveSHA256
+            )
+            bootstrapFailure = error
+            progressController?.append(error.localizedDescription)
+            return nil
+        }
+
+        progressController?.append("Verified dcm2niix archive checksum for \(Dcm2NiixBootstrap.pinnedVersion).")
+        try? FileManager.default.removeItem(at: binaryURL)
+
         let unzip = Process()
         unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         unzip.arguments = ["-o", archiveURL.path, "-d", supportDirectory.path]
@@ -580,30 +642,33 @@ print("__RESULT__" + json.dumps({"path": result}))
             return nil
         }
 
-        let enumerator = FileManager.default.enumerator(at: supportDirectory, includingPropertiesForKeys: nil)
-        var locatedBinary: URL?
+        var isDirectory: ObjCBool = false
 
-        while let item = enumerator?.nextObject() as? URL {
-            if item.lastPathComponent == "dcm2niix" {
-                locatedBinary = item
-                break
-            }
+        guard FileManager.default.fileExists(atPath: binaryURL.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            bootstrapFailure = .extractedBinaryMissing
+            progressController?.append(Dcm2NiixBootstrapError.extractedBinaryMissing.localizedDescription)
+            progressController?.append("Expected path: \(binaryURL.path)")
+            try? FileManager.default.removeItem(at: archiveURL)
+            return nil
         }
 
-        guard let resolvedBinary = locatedBinary else {
-            progressController?.append("dcm2niix binary not found after extraction.")
+        guard sha256(ofFileAt: binaryURL)?.caseInsensitiveCompare(Dcm2NiixBootstrap.expectedBinarySHA256) == .orderedSame else {
+            try? FileManager.default.removeItem(at: archiveURL)
+            try? FileManager.default.removeItem(at: binaryURL)
+            bootstrapFailure = .extractedBinaryChecksumMismatch
+            progressController?.append(Dcm2NiixBootstrapError.extractedBinaryChecksumMismatch.localizedDescription)
             return nil
         }
 
         do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: resolvedBinary.path)
+            let attributes = try FileManager.default.attributesOfItem(atPath: binaryURL.path)
             if let permissions = attributes[.posixPermissions] as? NSNumber {
                 let current = permissions.uint16Value
                 if current & 0o111 == 0 {
-                    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: resolvedBinary.path)
+                    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binaryURL.path)
                 }
             } else {
-                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: resolvedBinary.path)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binaryURL.path)
             }
         } catch {
             progressController?.append("Failed to update dcm2niix permissions: \(error.localizedDescription)")
@@ -612,8 +677,8 @@ print("__RESULT__" + json.dumps({"path": result}))
 
         try? FileManager.default.removeItem(at: archiveURL)
 
-        progressController?.append("dcm2niix downloaded to \(resolvedBinary.path)")
-        return resolvedBinary.path
+        progressController?.append("Verified dcm2niix downloaded to \(binaryURL.path)")
+        return binaryURL.path
     }
 
     private func pipInstallInstruction(for module: String, using resolution: ExecutableResolution) -> String {

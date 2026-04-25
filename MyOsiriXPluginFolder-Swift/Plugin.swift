@@ -23,29 +23,144 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
     static let toolbarMenuTitle = "TotalSegmentator"
     static let menuTitles = [settingsMenuTitle, runMenuTitle, toolbarMenuTitle]
 
-    static let canonicalTaskOptions: [(title: String, value: String?)] = [
-        (NSLocalizedString("Automatic (default)", comment: "Default task option"), nil),
-        ("Total (multi-organ)", "total"),
-        ("Total (fast)", "total_fast"),
-        ("Lung", "lung"),
-        ("Lung (vessels)", "lung_vessels"),
-        ("Heart", "heart"),
-        ("Head & Neck", "headneck"),
-        ("Cerebral Bleed", "cerebral_bleed"),
-        ("Femur", "femur"),
-        ("Hip", "hip"),
-        ("Kidneys", "kidney"),
-        ("Liver", "liver"),
-        ("Pelvis", "pelvis"),
-        ("Prostate", "prostate"),
-        ("Spleen", "spleen"),
-        ("Spine (vertebrae)", "vertebrae"),
-        ("Body (fat & muscles)", "body"),
-        ("Brain (structures)", "brain"),
-        ("Cardiac (chambers)", "cardiac"),
-        ("Coronary Arteries", "coronary_arteries"),
-        ("Pancreas", "pancreas")
+    static let groupedTaskOptions: [TaskGroup] = [
+        TaskGroup(
+            name: NSLocalizedString("Automatic", comment: "Task group header for automatic task selection"),
+            tasks: [
+                TaskOption(
+                    title: NSLocalizedString("Automatic (default)", comment: "Default task option"),
+                    value: nil,
+                    description: NSLocalizedString("Leaves --task unset so TotalSegmentator uses its default task for the input images. Recommended for most workflows.", comment: "Task description for automatic task selection")
+                )
+            ]
+        ),
+        TaskGroup(
+            name: NSLocalizedString("Whole Body", comment: "Task group header for whole body tasks"),
+            tasks: [
+                TaskOption(
+                    title: "Total (multi-organ)",
+                    value: "total",
+                    description: NSLocalizedString("Segments 104 anatomical structures including organs, bones, and vessels. Best for comprehensive whole-body analysis.", comment: "Task description for total task")
+                ),
+                TaskOption(
+                    title: "Body (fat & muscles)",
+                    value: "body",
+                    description: NSLocalizedString("Segments body composition structures such as fat and muscle compartments. Useful for body composition measurements rather than organ mapping.", comment: "Task description for body task")
+                )
+            ]
+        ),
+        TaskGroup(
+            name: NSLocalizedString("Thorax & Cardiac", comment: "Task group header for thorax and cardiac tasks"),
+            tasks: [
+                TaskOption(
+                    title: "Lung",
+                    value: "lung",
+                    description: NSLocalizedString("Segments the lungs and major pulmonary regions. Choose this when the study focus is thoracic anatomy.", comment: "Task description for lung task")
+                ),
+                TaskOption(
+                    title: "Lung (vessels)",
+                    value: "lung_vessels",
+                    description: NSLocalizedString("Segments lung vessels in addition to lung structures. Use when vascular detail matters more than a broad body inventory.", comment: "Task description for lung vessels task")
+                ),
+                TaskOption(
+                    title: "Heart",
+                    value: "heart",
+                    description: NSLocalizedString("Segments the heart as a focused thoracic structure. Use for a simpler cardiac target than chamber-level segmentation.", comment: "Task description for heart task")
+                ),
+                TaskOption(
+                    title: "Cardiac (chambers)",
+                    value: "cardiac",
+                    description: NSLocalizedString("Segments cardiac chambers and related cardiac anatomy. Best for workflows that need chamber-level labels.", comment: "Task description for cardiac task")
+                ),
+                TaskOption(
+                    title: "Coronary Arteries",
+                    value: "coronary_arteries",
+                    description: NSLocalizedString("Segments coronary artery structures. Use for focused cardiac vessel analysis when image quality supports it.", comment: "Task description for coronary arteries task")
+                )
+            ]
+        ),
+        TaskGroup(
+            name: NSLocalizedString("Abdomen", comment: "Task group header for abdomen tasks"),
+            tasks: [
+                TaskOption(
+                    title: "Kidneys",
+                    value: "kidney",
+                    description: NSLocalizedString("Segments kidney anatomy. Use for renal-focused studies where a full multi-organ run is unnecessary.", comment: "Task description for kidney task")
+                ),
+                TaskOption(
+                    title: "Liver",
+                    value: "liver",
+                    description: NSLocalizedString("Segments liver anatomy. Use for liver-focused studies or when you want a narrower abdominal target.", comment: "Task description for liver task")
+                ),
+                TaskOption(
+                    title: "Pelvis",
+                    value: "pelvis",
+                    description: NSLocalizedString("Segments pelvic anatomy. Useful when the field of view is centered on the pelvis.", comment: "Task description for pelvis task")
+                ),
+                TaskOption(
+                    title: "Prostate",
+                    value: "prostate",
+                    description: NSLocalizedString("Segments prostate anatomy. Use for prostate-focused pelvic workflows.", comment: "Task description for prostate task")
+                ),
+                TaskOption(
+                    title: "Spleen",
+                    value: "spleen",
+                    description: NSLocalizedString("Segments spleen anatomy. Use for spleen-focused abdominal studies.", comment: "Task description for spleen task")
+                ),
+                TaskOption(
+                    title: "Pancreas",
+                    value: "pancreas",
+                    description: NSLocalizedString("Segments pancreas anatomy. Use for pancreas-focused abdominal workflows.", comment: "Task description for pancreas task")
+                )
+            ]
+        ),
+        TaskGroup(
+            name: NSLocalizedString("Neuro", comment: "Task group header for neuro tasks"),
+            tasks: [
+                TaskOption(
+                    title: "Head & Neck",
+                    value: "headneck",
+                    description: NSLocalizedString("Segments head and neck structures. Choose this for studies focused above the thorax.", comment: "Task description for head and neck task")
+                ),
+                TaskOption(
+                    title: "Cerebral Bleed",
+                    value: "cerebral_bleed",
+                    description: NSLocalizedString("Segments suspected cerebral hemorrhage regions. Use for focused neuro workflows rather than general anatomy.", comment: "Task description for cerebral bleed task")
+                ),
+                TaskOption(
+                    title: "Brain (structures)",
+                    value: "brain",
+                    description: NSLocalizedString("Segments brain structures. Best for studies where intracranial anatomy is the primary target.", comment: "Task description for brain task")
+                )
+            ]
+        ),
+        TaskGroup(
+            name: NSLocalizedString("Musculoskeletal", comment: "Task group header for musculoskeletal tasks"),
+            tasks: [
+                TaskOption(
+                    title: "Femur",
+                    value: "femur",
+                    description: NSLocalizedString("Segments femur anatomy. Use for lower-extremity or hip-adjacent musculoskeletal studies.", comment: "Task description for femur task")
+                ),
+                TaskOption(
+                    title: "Hip",
+                    value: "hip",
+                    description: NSLocalizedString("Segments hip anatomy. Useful for pelvic and proximal femur workflows.", comment: "Task description for hip task")
+                ),
+                TaskOption(
+                    title: "Spine (vertebrae)",
+                    value: "vertebrae",
+                    description: NSLocalizedString("Segments vertebral structures. Use for spine-focused studies where vertebra labels are needed.", comment: "Task description for vertebrae task")
+                )
+            ]
+        )
     ]
+
+    static let canonicalTaskOptions: [(title: String, value: String?)] = groupedTaskOptions.flatMap { group in
+        group.tasks.map { task in
+            (title: task.title, value: task.value)
+        }
+    }
 
     static let canonicalDeviceOptions: [(title: String, value: String?)] = [
         (NSLocalizedString("Auto", comment: "Automatic device selection"), nil),
@@ -96,6 +211,7 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
     }
 
     let taskOptions = TotalSegmentatorHorosPlugin.canonicalTaskOptions
+    let taskGroups = TotalSegmentatorHorosPlugin.groupedTaskOptions
     let deviceOptions = TotalSegmentatorHorosPlugin.canonicalDeviceOptions
 
     /// Handle a Horos menu action by dispatching the corresponding plugin behavior.

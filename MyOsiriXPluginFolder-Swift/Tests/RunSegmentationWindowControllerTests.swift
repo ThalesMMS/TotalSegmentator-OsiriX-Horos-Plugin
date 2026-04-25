@@ -38,7 +38,7 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
 
     private func makeConfiguration(
         preferences: PreferencesState? = nil,
-        taskOptions: [(title: String, value: String?)] = [],
+        taskGroups: [TaskGroup] = [],
         deviceOptions: [(title: String, value: String?)] = [],
         classSummaryText: String = "",
         classSummaryTooltip: String? = nil,
@@ -46,7 +46,7 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
     ) -> Configuration {
         Configuration(
             preferences: preferences ?? makePreferencesState(),
-            taskOptions: taskOptions,
+            taskGroups: taskGroups,
             deviceOptions: deviceOptions,
             classSummaryText: classSummaryText,
             classSummaryTooltip: classSummaryTooltip,
@@ -64,16 +64,22 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         XCTAssertTrue(config.preferences.useFast)
     }
 
-    func test_configuration_storesTaskOptions() {
-        let options: [(title: String, value: String?)] = [
-            ("Automatic", nil),
-            ("Total", "total"),
-            ("Fast", "total_fast")
+    func test_configuration_storesTaskGroups() {
+        let groups = [
+            TaskGroup(
+                name: "Whole Body",
+                tasks: [
+                    TaskOption(title: "Total", value: "total", description: "All structures"),
+                    TaskOption(title: "Body", value: "body", description: "Body composition")
+                ]
+            )
         ]
-        let config = makeConfiguration(taskOptions: options)
-        XCTAssertEqual(config.taskOptions.count, 3)
-        XCTAssertEqual(config.taskOptions[1].title, "Total")
-        XCTAssertEqual(config.taskOptions[1].value, "total")
+        let config = makeConfiguration(taskGroups: groups)
+        XCTAssertEqual(config.taskGroups.count, 1)
+        XCTAssertEqual(config.taskGroups[0].name, "Whole Body")
+        XCTAssertEqual(config.taskGroups[0].tasks[0].title, "Total")
+        XCTAssertEqual(config.taskGroups[0].tasks[0].value, "total")
+        XCTAssertEqual(config.taskGroups[0].tasks[0].description, "All structures")
     }
 
     func test_configuration_storesDeviceOptions() {

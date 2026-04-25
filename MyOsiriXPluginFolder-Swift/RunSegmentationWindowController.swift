@@ -22,7 +22,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
     struct Configuration {
         var preferences: PreferencesState
-        var taskOptions: [(title: String, value: String?)]
+        var taskGroups: [TaskGroup]
         var deviceOptions: [(title: String, value: String?)]
         var classSummaryText: String
         var classSummaryTooltip: String?
@@ -35,6 +35,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
     }
 
     @IBOutlet private weak var taskPopupButton: NSPopUpButton!
+    @IBOutlet private var taskDescriptionLabel: NSTextField!
     @IBOutlet private weak var devicePopupButton: NSPopUpButton!
     @IBOutlet private weak var fastModeCheckbox: NSButton!
     @IBOutlet private weak var classSummaryField: NSTextField!
@@ -96,6 +97,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         }
         // Force label colors to be readable on light background
         fixLabelColors()
+        configureTaskDescriptionLabel(taskDescriptionLabel)
         applyConfiguration()
     }
 
@@ -125,6 +127,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
     @IBAction private func taskSelectionChanged(_ sender: Any) {
         currentClassLoadRequestID = nil
+        updateTaskDescription()
         updateClassSelectionPresentation()
     }
 
@@ -250,7 +253,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
         if !hasConfiguredOptions {
             // Populate the options only once so the user's selection survives when reopening the window.
-            populatePopUpButton(taskPopupButton, with: configuration.taskOptions)
+            populateTaskPopUpButton(taskPopupButton, with: configuration.taskGroups)
             populatePopUpButton(devicePopupButton, with: configuration.deviceOptions)
             hasConfiguredOptions = true
         }
@@ -258,6 +261,8 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         selectItem(in: taskPopupButton, matching: configuration.preferences.task)
         selectItem(in: devicePopupButton, matching: configuration.preferences.device)
         fastModeCheckbox?.state = configuration.preferences.useFast ? .on : .off
+
+        updateTaskDescription()
 
         classSummaryField?.isEditable = false
         classSummaryField?.isSelectable = false
@@ -278,27 +283,6 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         updateLaunchButtonState()
     }
 
-    private func populatePopUpButton(_ button: NSPopUpButton?, with options: [(title: String, value: String?)]) {
-        guard let button = button else { return }
-        button.removeAllItems()
-        for option in options {
-            let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
-            item.representedObject = option.value
-            button.menu?.addItem(item)
-        }
-        button.menu?.items.first.map { button.select($0) }
-    }
-
-    private func selectItem(in button: NSPopUpButton?, matching value: String?) {
-        guard let menuItems = button?.menu?.items else { return }
-        if let value = value,
-           let item = menuItems.first(where: { ($0.representedObject as? String) == value }) {
-            button?.select(item)
-        } else {
-            button?.selectItem(at: 0)
-        }
-    }
-
     /// Constructs a `PreferencesState` by reading the current UI control values.
     /// 
     /// The returned preferences start from `configuration?.preferences` and are updated with the selected task and device (or `nil` if no selection), the fast-mode checkbox state, and the trimmed license string (empty license becomes `nil`).
@@ -307,7 +291,8 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         guard var preferences = configuration?.preferences else { return nil }
 
         // Read the user's choice without assuming the menu items are always present.
-        preferences.task = taskPopupButton?.selectedItem?.representedObject as? String
+        guard hasValidTaskSelection() else { return nil }
+        preferences.task = currentSelectedTask()
         preferences.device = devicePopupButton?.selectedItem?.representedObject as? String
 
         preferences.useFast = fastModeCheckbox?.state == .on
@@ -323,8 +308,20 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         return preferences
     }
 
+    private func hasValidTaskSelection() -> Bool {
+        return hasValidTaskSelection(in: taskPopupButton)
+    }
+
     private func currentSelectedTask() -> String? {
-        return taskPopupButton?.selectedItem?.representedObject as? String
+        return currentSelectedTask(in: taskPopupButton)
+    }
+
+    private func updateTaskDescription() {
+        updateTaskDescription(
+            taskDescriptionLabel,
+            selectedTask: currentSelectedTask(),
+            taskGroups: configuration?.taskGroups ?? TotalSegmentatorHorosPlugin.groupedTaskOptions
+        )
     }
 
     private func taskSupportsClassSelection(_ task: String?) -> Bool {

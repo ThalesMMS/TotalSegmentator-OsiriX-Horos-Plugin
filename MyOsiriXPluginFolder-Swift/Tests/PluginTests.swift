@@ -181,6 +181,10 @@ final class PluginOptionListTests: XCTestCase {
         TotalSegmentatorHorosPlugin.canonicalTaskOptions
     }
 
+    private var taskGroups: [TaskGroup] {
+        TotalSegmentatorHorosPlugin.groupedTaskOptions
+    }
+
     private var deviceOptions: [(title: String, value: String?)] {
         TotalSegmentatorHorosPlugin.canonicalDeviceOptions
     }
@@ -211,6 +215,11 @@ final class PluginOptionListTests: XCTestCase {
         XCTAssertTrue(taskOptions.contains(where: { $0.value == "total" }))
     }
 
+    func test_taskOptions_doNotContainTotalFastTask() {
+        XCTAssertFalse(taskOptions.contains(where: { $0.value == "total_fast" }))
+        XCTAssertFalse(taskOptions.contains(where: { $0.title == "Total (fast)" }))
+    }
+
     func test_taskOptions_containsLung() {
         XCTAssertTrue(taskOptions.contains(where: { $0.value == "lung" }))
     }
@@ -226,6 +235,35 @@ final class PluginOptionListTests: XCTestCase {
 
     func test_taskOptions_countIsGreaterThanOne() {
         XCTAssertGreaterThan(taskOptions.count, 1)
+    }
+
+    func test_groupedTaskOptions_allGroupsHaveNamesAndTasks() {
+        for group in taskGroups {
+            XCTAssertFalse(group.name.isEmpty, "Task group names must not be empty")
+            XCTAssertFalse(group.tasks.isEmpty, "Task group '\(group.name)' must contain at least one task")
+        }
+    }
+
+    func test_groupedTaskOptions_allDescriptionsAreNonEmpty() {
+        for group in taskGroups {
+            for task in group.tasks {
+                XCTAssertFalse(task.description.isEmpty, "Task '\(task.title)' must have helper text")
+            }
+        }
+    }
+
+    func test_canonicalTaskOptions_areDerivedFromGroupedTaskOptions() {
+        let flattened = taskGroups.flatMap { group in
+            group.tasks.map { task in
+                (title: task.title, value: task.value)
+            }
+        }
+
+        XCTAssertEqual(taskOptions.count, flattened.count)
+        for (index, option) in taskOptions.enumerated() {
+            XCTAssertEqual(option.title, flattened[index].title)
+            XCTAssertEqual(option.value, flattened[index].value)
+        }
     }
 
     // MARK: Device Options

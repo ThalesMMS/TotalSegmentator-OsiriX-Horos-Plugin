@@ -23,6 +23,7 @@
 		3C35DA86F7204A5D90C51396 /* TotalSegmentatorHorosPlugin+Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AA3040C7F54F17955E2608 /* TotalSegmentatorHorosPlugin+Preferences.swift */; };
 		D2D8D2032AF5A00100AAA111 /* RunSegmentationWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = D2D8D2042AF5A00100AAA111 /* RunSegmentationWindowController.xib */; };
 		D2D8D2052AF5A00100AAA111 /* RunSegmentationWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D2022AF5A00100AAA111 /* RunSegmentationWindowController.swift */; };
+		D2D8D20C2AF5C00000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20D2AF5C00000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */; };
 		D2D8D2062AF5A9D200AAA111 /* TotalSegmentatorToolbar.png in Resources */ = {isa = PBXBuildFile; fileRef = D2D8D2072AF5A9D200AAA111 /* TotalSegmentatorToolbar.png */; };
 		D2D8D2092AF5B3B400AAA111 /* ClassSelectionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */; };
 		D2D8D20B2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */; };
@@ -46,6 +47,7 @@
 		4E72E1931C3448F49CCB9C16 /* TotalSegmentatorHorosPlugin+Audit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TotalSegmentatorHorosPlugin+Audit.swift"; sourceTree = "<group>"; };
 		B9AA3040C7F54F17955E2608 /* TotalSegmentatorHorosPlugin+Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TotalSegmentatorHorosPlugin+Preferences.swift"; sourceTree = "<group>"; };
 		D2D8D2022AF5A00100AAA111 /* RunSegmentationWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSegmentationWindowController.swift; sourceTree = "<group>"; };
+		D2D8D20D2AF5C00000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RunSegmentationWindowController+TaskPicker.swift"; sourceTree = "<group>"; };
 		D2D8D2042AF5A00100AAA111 /* RunSegmentationWindowController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = RunSegmentationWindowController.xib; sourceTree = "<group>"; };
 		D2D8D2072AF5A9D200AAA111 /* TotalSegmentatorToolbar.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = TotalSegmentatorToolbar.png; sourceTree = "<group>"; };
 		D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSelectionWindowController.swift; sourceTree = "<group>"; };
@@ -81,6 +83,7 @@
 				4E72E1931C3448F49CCB9C16 /* TotalSegmentatorHorosPlugin+Audit.swift */,
 				B9AA3040C7F54F17955E2608 /* TotalSegmentatorHorosPlugin+Preferences.swift */,
 				D2D8D2022AF5A00100AAA111 /* RunSegmentationWindowController.swift */,
+				D2D8D20D2AF5C00000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */,
 				D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */,
 				D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */,
 				CEC0F6EC28BF49EB003DD38F /* Settings.xib */,
@@ -173,6 +176,7 @@
 				D2D8D2092AF5B3B400AAA111 /* ClassSelectionWindowController.swift in Sources */,
 				D2D8D20B2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift in Sources */,
 				D2D8D2052AF5A00100AAA111 /* RunSegmentationWindowController.swift in Sources */,
+				D2D8D20C2AF5C00000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */,
 				CEC0F6F228BF8DF5003DD38F /* Plugin.swift in Sources */,
 				1C92A5A122B140E9AD3082CE /* TotalSegmentatorPluginTypes.swift in Sources */,
 				51560D95A0BF4BCDA8FECC6E /* TotalSegmentatorHorosPlugin+Utilities.swift in Sources */,
