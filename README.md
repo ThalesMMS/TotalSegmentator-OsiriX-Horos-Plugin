@@ -57,6 +57,9 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 - Xcode 15/16+ with Swift 5 toolchain.
 - Python 3.9 or 3.13 available (the plugin provisions its own virtualenv).
 - Optional GPU; CPU mode works but is faster with `--fast`.
+- Optional **GPU-accelerated resampling** (pre-processing) on Linux/Windows only when **CUDA** is available and the Python environment includes `cucim` + `cupy`.
+  - When available, TotalSegmentator will automatically use cuCIM (CUDA) for spacing changes.
+  - macOS/Apple Silicon is not supported for this path because CuPy/cuCIM wheels are not available; Apple Silicon **MPS** can run inference on GPU, but resampling falls back to CPU.
 
 ---
 
@@ -115,8 +118,23 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 | --- | --- | --- |
 | Plugin missing from menu | Bundle not copied/signed correctly | Re-run installation steps and check permissions |
 | “rt_utils” missing error | Python dependency absent | Execute `~/Library/.../PythonEnvironment/bin/pip install rt_utils` |
+| GPU resampling not used | `change_spacing()` is silent in CPU-only/no-CUDA mode unless a GPU backend was explicitly selected. Messages are emitted for GPU selection, GPU failure, CUDA-with-missing-cuCIM (`[TotalSegmentator] CUDA detected, but GPU resampling dependencies are missing...`), or MPS detection. | Install `cucim`/`cupy` only when using GPU resampling. If CUDA is present and you see cuCIM/cupy import errors, recreate the venv with a matching `cupy-cudaXX` wheel; otherwise keep CPU resampling. |
+| cuCIM/cupy import errors | CUDA toolkit / wheel mismatch | Use a matching `cupy-cudaXX` wheel for your CUDA version; recreate the venv if needed |
 | No ROIs applied | RT-Struct failed to load | Inspect `Window ▸ Logs ▸ TotalSegmentator` and ensure a 2D series is open |
 | Python env corrupted | Interrupted during virtualenv setup | Delete `~/Library/Application Support/TotalSegmentatorHorosPlugin` and run the plugin again |
+
+### Optional: enable CUDA GPU-accelerated resampling
+
+Linux/Windows only — macOS/Apple Silicon not supported (no CuPy/cuCIM wheels).
+
+If you have an NVIDIA CUDA-capable GPU and want faster spacing changes during preprocessing, install the optional dependencies into the plugin-managed virtualenv:
+
+```bash
+"$HOME/Library/Application Support/TotalSegmentatorHorosPlugin/PythonEnvironment/bin/pip" install cucim cupy-cuda12x
+```
+
+Notes:
+- If your system uses a different CUDA major version, replace `cupy-cuda12x` accordingly.
 
 ---
 
@@ -125,6 +143,7 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 - Core plugin logic: `MyOsiriXPluginFolder-Swift/Plugin.swift`.
 - Interface files (XIB): `Settings.xib`, `RunSegmentationWindowController.xib`.
 - Python helpers (bridge, converters): generated on the fly in the plugin’s temporary workspace.
+- GPU resampling backend selection (CUDA/cuCIM/CuPy): see [DEV_NOTES.md](DEV_NOTES.md).
 
 ### Coding Guidelines
 - Swift 5 with `swift-format` where available.

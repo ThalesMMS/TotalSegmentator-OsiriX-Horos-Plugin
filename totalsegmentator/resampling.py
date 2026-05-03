@@ -11,7 +11,6 @@
 
 # pylint: disable=relative-beyond-top-level
 
-import os
 import time
 import importlib
 import multiprocessing
@@ -21,8 +20,51 @@ import nibabel as nib
 from scipy import ndimage
 from joblib import Parallel, delayed
 
+# Optional GPU resampling dependencies (CUDA only).
 cupy_available = importlib.util.find_spec("cupy") is not None
 cucim_available = importlib.util.find_spec("cucim") is not None
+
+# Module-level guard so we don't spam logs if change_spacing is called multiple times per run.
+# We track each distinct notice separately so "GPU selected" does not suppress
+# later "GPU failed; falling back" (and similar) messages.
+_GPU_RESAMPLING_NOTICES_EMITTED: set[str] = set()
+
+
+def _cuda_available() -> bool:
+    """Best-effort CUDA availability check (without importing torch).
+
+    We avoid torch here to keep resampling module lightweight and to not force
+    torch import side-effects.
+    """
+    if not (cupy_available and cucim_available):
+        return False
+
+    return _cupy_cuda_available()
+
+
+def _cupy_cuda_device_count() -> int:
+    import cupy as cp
+
+    runtime = cp.cuda.runtime
+    runtime_error = getattr(runtime, "CUDARuntimeError", RuntimeError)
+    try:
+        return int(runtime.getDeviceCount())
+    except runtime_error:
+        return 0
+
+
+def _cupy_cuda_available() -> bool:
+    try:
+        return _cupy_cuda_device_count() > 0
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
+def _maybe_print_once(key: str, msg: str) -> None:
+    if key in _GPU_RESAMPLING_NOTICES_EMITTED:
+        return
+    print(msg, flush=True)
+    _GPU_RESAMPLING_NOTICES_EMITTED.add(key)
 
 
 def change_spacing_of_affine(affine, zoom=0.5):
@@ -214,9 +256,63 @@ def change_spacing(img_in, new_spacing=1.25, target_shape=None, order=0, nr_cpus
         # new_data, _ = resample_img_nnunet(data, None, img_spacing, new_spacing, order_data=order, order_seg=order)
         _, new_data = resample_img_nnunet(None, data, img_spacing, new_spacing, order_data=order, order_seg=order)
     else:
-        if cupy_available and cucim_available:
-            new_data = resample_img_cucim(data, zoom=zoom, order=order, nr_cpus=nr_cpus)  # gpu resampling
+        # GPU resampling acceleration is currently CUDA-only (cuCIM/cupy).
+        # On Apple Silicon (MPS) we intentionally keep CPU resampling.
+        gpu_resampling_available = cupy_available and cucim_available and _cuda_available()
+        if gpu_resampling_available and len(data.shape) != 3:
+            input_dim = len(data.shape)
+            skip_msg = (
+                "[TotalSegmentator] GPU resampling skipped for 4D input; using CPU resampling for spacing changes."
+                if input_dim == 4
+                else f"[TotalSegmentator] GPU resampling skipped for {input_dim}D input; using CPU resampling for spacing changes."
+            )
+            _maybe_print_once(
+                f"gpu_skipped_{input_dim}d_input",
+                skip_msg,
+            )
+            new_data = resample_img(data, zoom=zoom, order=order, nr_cpus=nr_cpus)
+        elif gpu_resampling_available:
+            _maybe_print_once(
+                "gpu_backend_selected",
+                "[TotalSegmentator] Using GPU-accelerated resampling backend: cuCIM (CUDA).",
+            )
+            try:
+                new_data = resample_img_cucim(data, zoom=zoom, order=order, nr_cpus=nr_cpus)  # gpu resampling
+            # GPU libraries can fail for driver/runtime, OOM, and kernel reasons; always keep CPU fallback available.
+            except Exception as e:  # noqa: BLE001
+                _maybe_print_once(
+                    "gpu_failed_fallback_notice",
+                    "[TotalSegmentator] GPU resampling failed; falling back to CPU resampling. "
+                    f"Reason: {type(e).__name__}: {e}",
+                )
+                new_data = resample_img(data, zoom=zoom, order=order, nr_cpus=nr_cpus)
         else:
+            # If cupy is installed and CUDA is present but cuCIM is missing, give a one-time hint.
+            if cupy_available and (not cucim_available):
+                if _cupy_cuda_available():
+                    _maybe_print_once(
+                        "cuda_detected_cucim_missing_hint",
+                        "[TotalSegmentator] CUDA detected, but GPU resampling dependencies are missing. "
+                        "To enable GPU-accelerated resampling, install: pip install cucim cupy-cuda12x",
+                    )
+
+            # Explicit MPS note: cuCIM/cupy acceleration is CUDA-only.
+            # Avoid importing torch unless needed.
+            mps_available_without_cuda = False
+            try:
+                import torch
+
+                mps_available_without_cuda = torch.backends.mps.is_available() and (not torch.cuda.is_available())
+            except (ImportError, AttributeError, RuntimeError):
+                mps_available_without_cuda = False
+
+            if mps_available_without_cuda:
+                _maybe_print_once(
+                    "mps_note",
+                    "[TotalSegmentator] MPS device detected; GPU-accelerated resampling is currently CUDA-only (cuCIM/cupy). "
+                    "Using CPU resampling for spacing changes.",
+                )
+
             new_data = resample_img(data, zoom=zoom, order=order, nr_cpus=nr_cpus)  # cpu resampling
 
     if remove_negative:

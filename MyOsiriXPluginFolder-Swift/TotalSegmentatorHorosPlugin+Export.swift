@@ -6,6 +6,153 @@
 import Cocoa
 
 extension TotalSegmentatorHorosPlugin {
+    private static let exportMaxConcurrentCopiesCap = 8
+
+    private struct CopyFilesResult: Sendable {
+        let copiedFiles: [URL]
+        let newCopiesCount: Int
+    }
+
+    private enum ExportCopyError: LocalizedError {
+        case mismatchedSourceDestinationCounts
+
+        var errorDescription: String? {
+            switch self {
+            case .mismatchedSourceDestinationCounts:
+                return "The DICOM export source and destination counts do not match."
+            }
+        }
+    }
+
+    private final class CopyFilesTaskResult: @unchecked Sendable {
+        private let condition = NSCondition()
+        private var storedResult: Result<CopyFilesResult, Error>?
+
+        func store(_ result: Result<CopyFilesResult, Error>) {
+            condition.lock()
+            storedResult = result
+            condition.signal()
+            condition.unlock()
+        }
+
+        func resolve() throws -> CopyFilesResult {
+            condition.lock()
+            while storedResult == nil {
+                condition.wait()
+            }
+
+            let result = storedResult!
+            condition.unlock()
+
+            return try result.get()
+        }
+    }
+
+    // Bounded parallelism: file copying is I/O bound; limiting concurrency avoids disk thrash
+    // and excessive file descriptors while still speeding up large exports.
+    private var exportMaxConcurrentCopies: Int {
+        let cpuCount = max(ProcessInfo.processInfo.activeProcessorCount, 2)
+        return min(cpuCount, Self.exportMaxConcurrentCopiesCap)
+    }
+
+    @discardableResult
+    private static func copyDicomFileIfNeeded(from sourceURL: URL, to destinationURL: URL) throws -> Bool {
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            return false
+        }
+
+        do {
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            return true
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain,
+               nsError.code == CocoaError.Code.fileWriteFileExists.rawValue {
+                return false
+            }
+
+            throw error
+        }
+    }
+
+    private func copyFilesInParallel(sources sourceURLs: [URL], destinations destinationURLs: [URL]) throws -> CopyFilesResult {
+        guard sourceURLs.count == destinationURLs.count else {
+            throw ExportCopyError.mismatchedSourceDestinationCounts
+        }
+
+        let maxConcurrentCopies = exportMaxConcurrentCopies
+        let resultBox = CopyFilesTaskResult()
+
+        Task.detached(priority: .utility) {
+            do {
+                let result = try await Self.copyFilesInParallelAsync(
+                    sources: sourceURLs,
+                    destinations: destinationURLs,
+                    maxConcurrentCopies: maxConcurrentCopies
+                )
+                resultBox.store(.success(result))
+            } catch {
+                resultBox.store(.failure(error))
+            }
+        }
+
+        return try resultBox.resolve()
+    }
+
+    private static func copyFilesInParallelAsync(
+        sources sourceURLs: [URL],
+        destinations destinationURLs: [URL],
+        maxConcurrentCopies: Int
+    ) async throws -> CopyFilesResult {
+        let copyLimit = max(maxConcurrentCopies, 1)
+        var copiedFiles = Array<URL?>(repeating: nil, count: destinationURLs.count)
+        var newCopiesCount = 0
+        var nextIndex = 0
+
+        return try await withThrowingTaskGroup(of: (index: Int, destination: URL, didCreateFile: Bool).self) { group in
+            func enqueueNextCopy() {
+                let index = nextIndex
+                nextIndex += 1
+
+                let sourceURL = sourceURLs[index]
+                let destinationURL = destinationURLs[index]
+
+                group.addTask(priority: .utility) {
+                    try Task.checkCancellation()
+                    let didCreateFile = try copyDicomFileIfNeeded(from: sourceURL, to: destinationURL)
+                    try Task.checkCancellation()
+                    return (index, destinationURL, didCreateFile)
+                }
+            }
+
+            let initialCopyCount = min(copyLimit, sourceURLs.count)
+            for _ in 0..<initialCopyCount {
+                enqueueNextCopy()
+            }
+
+            do {
+                while let copyResult = try await group.next() {
+                    copiedFiles[copyResult.index] = copyResult.destination
+                    if copyResult.didCreateFile {
+                        newCopiesCount += 1
+                    }
+
+                    if nextIndex < sourceURLs.count {
+                        enqueueNextCopy()
+                    }
+                }
+            } catch {
+                group.cancelAll()
+                throw error
+            }
+
+            return CopyFilesResult(
+                copiedFiles: copiedFiles.compactMap { $0 },
+                newCopiesCount: newCopiesCount
+            )
+        }
+    }
+
     func exportActiveSeries(from viewer: ViewerController) throws -> ExportResult {
         enum ActiveSeriesExportError: LocalizedError {
             case missingSeries
@@ -56,26 +203,17 @@ extension TotalSegmentatorHorosPlugin {
         let seriesDirectory = exportDirectory.appendingPathComponent(seriesIdentifier, isDirectory: true)
         try FileManager.default.createDirectory(at: seriesDirectory, withIntermediateDirectories: true)
 
-        var copiedFiles: [URL] = []
-
+        // Preserve deterministic output ordering regardless of parallel copy completion order.
+        let sourceURLs = paths.map { URL(fileURLWithPath: $0) }
+        let destinationURLs = sourceURLs.map { seriesDirectory.appendingPathComponent($0.lastPathComponent) }
+        let copyResult: CopyFilesResult
         do {
-            for path in paths {
-                let sourceURL = URL(fileURLWithPath: path)
-                let destinationURL = seriesDirectory.appendingPathComponent(sourceURL.lastPathComponent)
-
-                if FileManager.default.fileExists(atPath: destinationURL.path) {
-                    copiedFiles.append(destinationURL)
-                    continue
-                }
-
-                try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-                copiedFiles.append(destinationURL)
-            }
+            copyResult = try copyFilesInParallel(sources: sourceURLs, destinations: destinationURLs)
         } catch {
             throw ActiveSeriesExportError.exportFailed(underlying: error)
         }
 
-        guard !copiedFiles.isEmpty else {
+        guard !copyResult.copiedFiles.isEmpty else {
             throw ActiveSeriesExportError.missingSlices
         }
 
@@ -83,7 +221,7 @@ extension TotalSegmentatorHorosPlugin {
             series: series,
             modality: modality,
             exportedDirectory: seriesDirectory,
-            exportedFiles: copiedFiles,
+            exportedFiles: copyResult.copiedFiles,
             seriesInstanceUID: seriesIdentifierSource,
             studyInstanceUID: series.study?.studyInstanceUID
         )
@@ -141,7 +279,6 @@ extension TotalSegmentatorHorosPlugin {
 
         let exportDirectory = try makeExportDirectory()
 
-        var exportedFiles = 0
         var exportedSeries: [ExportedSeries] = []
 
         do {
@@ -153,28 +290,17 @@ extension TotalSegmentatorHorosPlugin {
                 let seriesDirectory = exportDirectory.appendingPathComponent(seriesIdentifier, isDirectory: true)
                 try FileManager.default.createDirectory(at: seriesDirectory, withIntermediateDirectories: true)
 
-                var copiedFiles: [URL] = []
-
-                for path in entry.paths {
-                    let sourceURL = URL(fileURLWithPath: path)
-                    let destinationURL = seriesDirectory.appendingPathComponent(sourceURL.lastPathComponent)
-
-                    if FileManager.default.fileExists(atPath: destinationURL.path) {
-                        continue
-                    }
-
-                    try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-                    exportedFiles += 1
-                    copiedFiles.append(destinationURL)
-                }
-
-                guard !copiedFiles.isEmpty else { continue }
+                // Preserve deterministic output ordering regardless of parallel copy completion order.
+                let sourceURLs = entry.paths.map { URL(fileURLWithPath: $0) }
+                let destinationURLs = sourceURLs.map { seriesDirectory.appendingPathComponent($0.lastPathComponent) }
+                let copyResult = try copyFilesInParallel(sources: sourceURLs, destinations: destinationURLs)
+                guard !copyResult.copiedFiles.isEmpty else { continue }
 
                 let seriesInfo = ExportedSeries(
                     series: entry.series,
                     modality: entry.modality,
                     exportedDirectory: seriesDirectory,
-                    exportedFiles: copiedFiles,
+                    exportedFiles: copyResult.copiedFiles,
                     seriesInstanceUID: entry.series.seriesInstanceUID
                         ?? (entry.series.value(forKey: "seriesInstanceUID") as? String),
                     studyInstanceUID: entry.series.study?.studyInstanceUID ?? study.studyInstanceUID
@@ -183,10 +309,6 @@ extension TotalSegmentatorHorosPlugin {
             }
         } catch {
             throw ExportError.exportFailed(underlying: error)
-        }
-
-        guard exportedFiles > 0 else {
-            throw ExportError.noCompatibleSeries
         }
 
         guard !exportedSeries.isEmpty else {
