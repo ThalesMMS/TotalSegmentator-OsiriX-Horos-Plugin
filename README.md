@@ -45,9 +45,16 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 
 ## Screenshots
 
-![Segmentation example 1](Screenshots/screenshot1.png)
-
-![Segmentation example 2](Screenshots/screenshot2.png)
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="Screenshots/screenshot0.png" alt="Run TotalSegmentator configuration" width="100%"><br><sub>Configuration</sub></td>
+    <td align="center" width="50%"><img src="Screenshots/screenshot1.png" alt="Axial segmentation overlay" width="100%"><br><sub>Axial</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="Screenshots/screenshot2.png" alt="Sagittal segmentation overlay" width="100%"><br><sub>Sagittal</sub></td>
+    <td align="center" width="50%"><img src="Screenshots/screenshot3.png" alt="Coronal segmentation overlay" width="100%"><br><sub>Coronal</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -68,8 +75,8 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/ThalesMMS/TotalSegmentator-OsiriX-Horos-Plugin-dev.git
-   cd TotalSegmentator-OsiriX-Horos-Plugin-dev
+   git clone https://github.com/ThalesMMS/TotalSegmentator-OsiriX-Horos-Plugin.git
+   cd TotalSegmentator-OsiriX-Horos-Plugin
    ```
 
 2. **Confirm the Xcode project is visible**
@@ -168,8 +175,8 @@ tests/                          # TotalSegmentator test suite (not plugin-specif
 
 ## Related ThalesMMS Repositories
 
-- [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin-dev`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin-dev), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
-- [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin-dev`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin-dev), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
+- [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
+- [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
 - [`ThalesMMS/DICOM-Decoder-dev`](https://github.com/ThalesMMS/DICOM-Decoder-dev), a Swift DICOM decoder toolkit for viewers, PACS clients, and related imaging tools.
 
 ---
