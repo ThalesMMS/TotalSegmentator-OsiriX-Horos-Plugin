@@ -518,11 +518,166 @@ import sys
 from pathlib import Path
 
 import nibabel as nib
+import numpy as np
 
-from totalsegmentator.dicom_io import (
-    generate_projected_volumetric_roi_manifest,
-    load_volumetric_roi_manifest,
-)
+
+def load_volumetric_roi_manifest(manifest_path):
+    with open(manifest_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def segmentation_data_as_uint16(segmentation_img):
+    data = np.asanyarray(segmentation_img.dataobj)
+    if data.ndim > 3:
+        data = np.squeeze(data)
+    if data.ndim != 3:
+        raise RuntimeError("The segmentation image must be a 3D volume.")
+    return np.rint(data).astype(np.uint16)
+
+
+def sanitize_path_component(value):
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
+    text = str(value) if value is not None else ""
+    cleaned = "".join(ch if ch in allowed else "_" for ch in text).strip("._")
+    return cleaned or "roi"
+
+
+def vector_from_plane(plane, key):
+    vector = np.array(plane[key], dtype=np.float64)
+    if vector.size != 3:
+        raise RuntimeError("Viewer geometry field '{}' must contain 3 values.".format(key))
+    return vector
+
+
+def sample_plane_labels(data, inverse_affine, plane):
+    rows = int(plane["rows"])
+    columns = int(plane["columns"])
+    if rows <= 0 or columns <= 0:
+        raise RuntimeError("Viewer geometry rows and columns must be positive.")
+
+    row_spacing = float(plane.get("row_spacing", 1.0))
+    column_spacing = float(plane.get("column_spacing", 1.0))
+    image_position = vector_from_plane(plane, "image_position")
+    row_cosine = vector_from_plane(plane, "row_cosine")
+    column_cosine = vector_from_plane(plane, "column_cosine")
+
+    row_indices = np.arange(rows, dtype=np.float64)
+    column_indices = np.arange(columns, dtype=np.float64)
+    column_grid, row_grid = np.meshgrid(column_indices, row_indices)
+
+    row_offsets = row_grid * row_spacing
+    column_offsets = column_grid * column_spacing
+    lps_x = image_position[0] + row_cosine[0] * column_offsets + column_cosine[0] * row_offsets
+    lps_y = image_position[1] + row_cosine[1] * column_offsets + column_cosine[1] * row_offsets
+    lps_z = image_position[2] + row_cosine[2] * column_offsets + column_cosine[2] * row_offsets
+
+    ras_x = -lps_x
+    ras_y = -lps_y
+    ras_z = lps_z
+
+    voxel_i = inverse_affine[0, 0] * ras_x + inverse_affine[0, 1] * ras_y + inverse_affine[0, 2] * ras_z + inverse_affine[0, 3]
+    voxel_j = inverse_affine[1, 0] * ras_x + inverse_affine[1, 1] * ras_y + inverse_affine[1, 2] * ras_z + inverse_affine[1, 3]
+    voxel_k = inverse_affine[2, 0] * ras_x + inverse_affine[2, 1] * ras_y + inverse_affine[2, 2] * ras_z + inverse_affine[2, 3]
+
+    index_i = np.rint(voxel_i).astype(np.int64)
+    index_j = np.rint(voxel_j).astype(np.int64)
+    index_k = np.rint(voxel_k).astype(np.int64)
+
+    valid = (
+        (index_i >= 0) & (index_i < data.shape[0]) &
+        (index_j >= 0) & (index_j < data.shape[1]) &
+        (index_k >= 0) & (index_k < data.shape[2])
+    )
+
+    sampled = np.zeros((rows, columns), dtype=np.uint16)
+    sampled[valid] = data[index_i[valid], index_j[valid], index_k[valid]]
+    return sampled
+
+
+def generate_projected_volumetric_roi_manifest(
+    segmentation_img,
+    mapping,
+    planes,
+    output_dir,
+    source_segmentation_path=None,
+    reference_dicom_dir=None,
+):
+    if not planes:
+        raise RuntimeError("At least one viewer geometry plane is required.")
+
+    data = segmentation_data_as_uint16(segmentation_img)
+    inverse_affine = np.linalg.inv(segmentation_img.affine)
+    roi_root = Path(output_dir)
+    roi_root.mkdir(parents=True, exist_ok=True)
+
+    label_records = {}
+    for raw_label_index in sorted(mapping.keys(), key=lambda value: int(value)):
+        label_index = int(raw_label_index)
+        label_name = str(mapping[raw_label_index])
+        label_records[label_index] = {
+            "index": label_index,
+            "name": label_name,
+            "safe_name": sanitize_path_component(label_name),
+            "slices": [],
+            "voxel_count": 0,
+        }
+
+    rows = int(planes[0]["rows"])
+    columns = int(planes[0]["columns"])
+
+    for slice_index, plane in enumerate(planes):
+        sampled = sample_plane_labels(data, inverse_affine, plane)
+        present_labels = [
+            int(value)
+            for value in np.unique(sampled)
+            if int(value) in label_records and int(value) != 0
+        ]
+
+        for label_index in present_labels:
+            mask = sampled == label_index
+            voxel_count = int(mask.sum())
+            if voxel_count == 0:
+                continue
+
+            record = label_records[label_index]
+            label_dir = roi_root / "{:03d}_{}".format(label_index, record["safe_name"])
+            label_dir.mkdir(parents=True, exist_ok=True)
+            uid = str(plane.get("sop_instance_uid") or plane.get("identifier") or slice_index)
+            uid_safe = sanitize_path_component(uid)
+            raw_path = label_dir / "slice_{:04d}_{}.raw".format(slice_index, uid_safe)
+            (mask.astype(np.uint8) * 255).tofile(str(raw_path))
+
+            record["voxel_count"] += voxel_count
+            record["slices"].append({
+                "slice_index": int(plane.get("slice_index", slice_index)),
+                "sop_instance_uid": uid,
+                "raw_path": str(raw_path),
+                "rows": int(plane["rows"]),
+                "columns": int(plane["columns"]),
+                "voxel_count": voxel_count,
+            })
+
+    labels = [record for record in label_records.values() if record["slices"]]
+    if not labels:
+        return None
+
+    manifest = {
+        "version": 1,
+        "format": "horos_tplain_roi_manifest",
+        "rows": rows,
+        "columns": columns,
+        "reference_dicom_dir": str(reference_dicom_dir or ""),
+        "source_segmentation_path": str(source_segmentation_path or ""),
+        "label_count": len(labels),
+        "roi_slice_count": int(sum(len(record["slices"]) for record in labels)),
+        "labels": labels,
+    }
+
+    manifest_path = roi_root / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+
+    return str(manifest_path)
 
 
 def main():

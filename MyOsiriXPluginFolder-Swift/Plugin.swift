@@ -202,7 +202,8 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
     let preferences = SegmentationPreferences()
     var errorLogWindowController: SegmentationProgressWindowController?
     let auditQueue = DispatchQueue(label: "org.totalsegmentator.horos.audit", qos: .utility)
-    let roiResyncCoordinator = TotalSegmentatorROIResyncCoordinator()
+    private static let sharedROIResyncCoordinator = TotalSegmentatorROIResyncCoordinator()
+    var roiResyncCoordinator: TotalSegmentatorROIResyncCoordinator { Self.sharedROIResyncCoordinator }
     var classSelectionController: ClassSelectionWindowController?
     var runConfigurationController: RunSegmentationWindowController?
     var availableClassOptionsCache: [String: [String]] = [:]

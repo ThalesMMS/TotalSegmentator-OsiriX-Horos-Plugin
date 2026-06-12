@@ -309,13 +309,6 @@ def generate_projected_volumetric_roi_manifest(
     if not planes:
         raise ValueError("At least one viewer geometry plane is required.")
 
-    seen_slice_indexes = set()
-    for plane_index, plane in enumerate(planes):
-        slice_index = int(plane.get("slice_index", plane_index))
-        if slice_index in seen_slice_indexes:
-            raise ValueError("Viewer geometry planes must have unique slice_index values.")
-        seen_slice_indexes.add(slice_index)
-
     data = _segmentation_data_as_uint16(segmentation_img)
     inverse_affine = np.linalg.inv(segmentation_img.affine)
     roi_root = Path(output_dir)
