@@ -397,9 +397,11 @@ extension TotalSegmentatorHorosPlugin {
                 if appliedOverlayCount > 0 {
                     self.reloadROIs(in: activeViewer)
                     self.deduplicateTotalSegmentatorROIs(in: activeViewer, labelNames: labelNames)
+                    self.applyTotalSegmentatorROIOpacity(in: activeViewer, labelNames: labelNames)
                     self.persistROIs(from: activeViewer)
                 } else if importedVolumetricROICount > 0 {
                     self.deduplicateTotalSegmentatorROIs(in: activeViewer, labelNames: labelNames)
+                    self.applyTotalSegmentatorROIOpacity(in: activeViewer, labelNames: labelNames)
                     self.persistROIs(from: activeViewer)
                 }
 
@@ -607,13 +609,34 @@ extension TotalSegmentatorHorosPlugin {
     }
 
     @discardableResult
+    fileprivate func applyTotalSegmentatorROIOpacity(in viewer: ViewerController, labelNames: Set<String>) -> Int {
+        guard let roiSeriesList = viewer.roiList() else {
+            return 0
+        }
+
+        var updatedCount = 0
+        for case let sliceList as NSArray in roiSeriesList {
+            for element in sliceList where isTotalSegmentatorROI(element, labelNames: labelNames) {
+                guard let roi = element as? ROI else {
+                    continue
+                }
+                roi.setOpacity(totalSegmentatorROIDisplayOpacity, globally: false)
+                updatedCount += 1
+            }
+        }
+
+        return updatedCount
+    }
+
+    @discardableResult
     fileprivate func deduplicateDisplayedTotalSegmentatorROIs(labelNames: Set<String>) -> Int {
         let displayedViewers = (ViewerController.getDisplayed2DViewers() as? [ViewerController]) ?? []
         var removedCount = 0
 
         for viewer in displayedViewers {
             let removedFromViewer = deduplicateTotalSegmentatorROIs(in: viewer, labelNames: labelNames)
-            guard removedFromViewer > 0 else {
+            let opacityUpdatedCount = applyTotalSegmentatorROIOpacity(in: viewer, labelNames: labelNames)
+            guard removedFromViewer > 0 || opacityUpdatedCount > 0 else {
                 continue
             }
 
@@ -639,6 +662,20 @@ extension TotalSegmentatorHorosPlugin {
         }.filter { !$0.isEmpty })
     }
 
+    fileprivate func isTotalSegmentatorROI(_ element: Any, labelNames: Set<String>) -> Bool {
+        let comments = stringValue(forKey: "comments", from: element)
+        if comments == TotalSegmentatorROIResyncCoordinator.generatedROIComment {
+            return true
+        }
+
+        guard !labelNames.isEmpty,
+              let name = stringValue(forKey: "name", from: element) else {
+            return false
+        }
+
+        return labelNames.contains(name)
+    }
+
     fileprivate func viewerHasTotalSegmentatorROIs(_ viewer: ViewerController, labelNames: Set<String>) -> Bool {
         guard let roiSeriesList = viewer.roiList() else {
             return false
@@ -646,12 +683,7 @@ extension TotalSegmentatorHorosPlugin {
 
         for case let sliceList as NSArray in roiSeriesList {
             for roi in sliceList {
-                let name = stringValue(forKey: "name", from: roi)
-                let comments = stringValue(forKey: "comments", from: roi)
-                if comments == TotalSegmentatorROIResyncCoordinator.generatedROIComment {
-                    return true
-                }
-                if let name, labelNames.contains(name) {
+                if isTotalSegmentatorROI(roi, labelNames: labelNames) {
                     return true
                 }
             }
@@ -1127,6 +1159,7 @@ final class TotalSegmentatorROIResyncCoordinator {
 
         owner.reloadROIs(in: viewer)
         owner.deduplicateTotalSegmentatorROIs(in: viewer, labelNames: context.labelNames)
+        owner.applyTotalSegmentatorROIOpacity(in: viewer, labelNames: context.labelNames)
         viewer.refresh()
         viewer.needsDisplayUpdate()
 
@@ -1174,6 +1207,7 @@ final class TotalSegmentatorROIResyncCoordinator {
                 context.viewer = activeViewer
                 _ = TSVolumetricROIImporter.importVolumetricROIs(fromManifest: projectedManifestPath, into: activeViewer)
                 context.owner.deduplicateTotalSegmentatorROIs(in: activeViewer, labelNames: context.labelNames)
+                context.owner.applyTotalSegmentatorROIOpacity(in: activeViewer, labelNames: context.labelNames)
                 context.owner.persistROIs(from: activeViewer)
                 activeViewer.refresh()
                 activeViewer.needsDisplayUpdate()
