@@ -5,6 +5,7 @@
 
 import Cocoa
 import CoreData
+import CryptoKit
 
 extension TotalSegmentatorHorosPlugin {
     func integrateSegmentationOutput(
@@ -13,7 +14,7 @@ extension TotalSegmentatorHorosPlugin {
         exportContext: ExportResult,
         preferences: SegmentationPreferences.State,
         executable: ExecutableResolution,
-        progressController: SegmentationProgressWindowController?
+        progressController: SegmentationProgressReporting?
     ) throws -> SegmentationImportResult {
         let normalizedOutput = outputType.description.uppercased()
         progressController?.append("Importing TotalSegmentator outputs (\(normalizedOutput))…")
@@ -27,14 +28,17 @@ extension TotalSegmentatorHorosPlugin {
             auditOutputType = .dicom
             convertedFromNifti = false
         case .nifti:
-            let convertedDirectory = try convertNiftiOutputsToDicom(
+            let conversionOutput = try convertNiftiOutputsToDicom(
                 from: url,
                 exportContext: exportContext,
                 preferences: preferences,
                 executable: executable,
                 progressController: progressController
             )
-            importResult = try importDicomOutputs(from: convertedDirectory)
+            importResult = try importDicomOutputs(
+                from: conversionOutput.directory,
+                volumetricROIManifestPath: conversionOutput.volumetricROIManifestPath
+            )
             auditOutputType = .dicom
             convertedFromNifti = true
         case .other(let value):
@@ -46,6 +50,7 @@ extension TotalSegmentatorHorosPlugin {
             with: importResult,
             exportContext: exportContext,
             preferences: preferences,
+            executable: executable,
             progressController: progressController
         )
         persistAuditMetadata(
@@ -61,7 +66,7 @@ extension TotalSegmentatorHorosPlugin {
         return importResult
     }
 
-    private func importDicomOutputs(from directory: URL) throws -> SegmentationImportResult {
+    private func importDicomOutputs(from directory: URL, volumetricROIManifestPath: String? = nil) throws -> SegmentationImportResult {
         let fileManager = FileManager.default
         let enumerator = fileManager.enumerator(
             at: directory,
@@ -85,7 +90,9 @@ extension TotalSegmentatorHorosPlugin {
             }
         }
 
-        guard !dicomPaths.isEmpty else {
+        let hasVolumetricManifest = volumetricROIManifestPath?.isEmpty == false
+
+        guard !dicomPaths.isEmpty || hasVolumetricManifest else {
             throw SegmentationPostProcessingError.noImportableResults
         }
 
@@ -93,36 +100,38 @@ extension TotalSegmentatorHorosPlugin {
         var importedIDSet = Set<NSManagedObjectID>()
         var importError: Error?
 
-        DispatchQueue.main.sync {
-            guard let database = BrowserController.currentBrowser()?.database else {
-                importError = SegmentationPostProcessingError.databaseUnavailable
-                return
-            }
+        if !dicomPaths.isEmpty {
+            DispatchQueue.main.sync {
+                guard let database = BrowserController.currentBrowser()?.database else {
+                    importError = SegmentationPostProcessingError.databaseUnavailable
+                    return
+                }
 
-            if let result = database.addFiles(
-                atPaths: dicomPaths,
-                postNotifications: true,
-                dicomOnly: true,
-                rereadExistingItems: false,
-                generatedByOsiriX: true,
-                returnArray: true
-            ) as? [NSManagedObjectID] {
-                importedObjectIDs = result
-                importedIDSet.formUnion(result)
-            }
+                if let result = database.addFiles(
+                    atPaths: dicomPaths,
+                    postNotifications: true,
+                    dicomOnly: true,
+                    rereadExistingItems: false,
+                    generatedByOsiriX: true,
+                    returnArray: true
+                ) as? [NSManagedObjectID] {
+                    importedObjectIDs = result
+                    importedIDSet.formUnion(result)
+                }
 
-            if !rtStructPaths.isEmpty,
-               let additionalIDs = database.addFiles(
-                   atPaths: rtStructPaths,
-                   postNotifications: true,
-                   dicomOnly: true,
-                   rereadExistingItems: true,
-                   generatedByOsiriX: true,
-                   returnArray: true
-               ) as? [NSManagedObjectID] {
-                for identifier in additionalIDs where !importedIDSet.contains(identifier) {
-                    importedObjectIDs.append(identifier)
-                    importedIDSet.insert(identifier)
+                if !rtStructPaths.isEmpty,
+                   let additionalIDs = database.addFiles(
+                       atPaths: rtStructPaths,
+                       postNotifications: true,
+                       dicomOnly: true,
+                       rereadExistingItems: true,
+                       generatedByOsiriX: true,
+                       returnArray: true
+                   ) as? [NSManagedObjectID] {
+                    for identifier in additionalIDs where !importedIDSet.contains(identifier) {
+                        importedObjectIDs.append(identifier)
+                        importedIDSet.insert(identifier)
+                    }
                 }
             }
         }
@@ -135,13 +144,26 @@ extension TotalSegmentatorHorosPlugin {
             addedFilePaths: dicomPaths,
             rtStructPaths: rtStructPaths,
             importedObjectIDs: importedObjectIDs,
-            outputType: .dicom
+            outputType: .dicom,
+            volumetricROIManifestPath: volumetricROIManifestPath
         )
     }
 
     private struct NiftiConversionManifest: Decodable {
         let rtStructPaths: [String]
         let dicomSeriesDirectories: [String]
+        let volumetricROIManifestPath: String?
+
+        enum CodingKeys: String, CodingKey {
+            case rtStructPaths = "rtstruct_paths"
+            case dicomSeriesDirectories = "dicom_series_directories"
+            case volumetricROIManifestPath = "volumetric_roi_manifest_path"
+        }
+    }
+
+    private struct NiftiConversionOutput {
+        let directory: URL
+        let volumetricROIManifestPath: String?
     }
 
     private func convertNiftiOutputsToDicom(
@@ -149,8 +171,8 @@ extension TotalSegmentatorHorosPlugin {
         exportContext: ExportResult,
         preferences: SegmentationPreferences.State,
         executable: ExecutableResolution,
-        progressController: SegmentationProgressWindowController?
-    ) throws -> URL {
+        progressController: SegmentationProgressReporting?
+    ) throws -> NiftiConversionOutput {
         guard let referenceSeries = exportContext.series.first else {
             throw NiftiConversionError.missingReferenceSeries
         }
@@ -205,14 +227,18 @@ extension TotalSegmentatorHorosPlugin {
 
         let manifest = try JSONDecoder().decode(NiftiConversionManifest.self, from: manifestData)
 
-        if manifest.rtStructPaths.isEmpty && manifest.dicomSeriesDirectories.isEmpty {
+        let hasVolumetricManifest = manifest.volumetricROIManifestPath?.isEmpty == false
+        if manifest.rtStructPaths.isEmpty && manifest.dicomSeriesDirectories.isEmpty && !hasVolumetricManifest {
             throw NiftiConversionError.noOutputsProduced
         }
 
         progressController?.append("Converted NIfTI segmentation output to DICOM-compatible artifacts.")
         logToConsole("Converted NIfTI segmentation output to DICOM-compatible artifacts at \(conversionDirectory.path)")
 
-        return conversionDirectory
+        return NiftiConversionOutput(
+            directory: conversionDirectory,
+            volumetricROIManifestPath: manifest.volumetricROIManifestPath
+        )
     }
 
     private func importNiftiOutputs(from directory: URL) throws -> SegmentationImportResult {
@@ -268,7 +294,8 @@ extension TotalSegmentatorHorosPlugin {
             addedFilePaths: niftiPaths,
             rtStructPaths: [],
             importedObjectIDs: importedObjectIDs,
-            outputType: .nifti
+            outputType: .nifti,
+            volumetricROIManifestPath: nil
         )
     }
 
@@ -276,9 +303,13 @@ extension TotalSegmentatorHorosPlugin {
         with importResult: SegmentationImportResult,
         exportContext: ExportResult,
         preferences: SegmentationPreferences.State,
-        progressController: SegmentationProgressWindowController?
+        executable: ExecutableResolution,
+        progressController: SegmentationProgressReporting?
     ) {
-        guard importResult.outputType == .dicom, !importResult.rtStructPaths.isEmpty else {
+        let hasRTStructOverlays = importResult.outputType == .dicom && !importResult.rtStructPaths.isEmpty
+        let hasVolumetricManifest = importResult.volumetricROIManifestPath?.isEmpty == false
+
+        guard hasRTStructOverlays || hasVolumetricManifest else {
             return
         }
 
@@ -292,7 +323,7 @@ extension TotalSegmentatorHorosPlugin {
         let semaphore = DispatchSemaphore(value: 0)
 
         DispatchQueue.main.async {
-            progressController?.append("Applying RT Struct overlays to the active viewer…")
+            progressController?.append("Applying segmentation ROIs to the active viewer…")
 
             guard let browser = BrowserController.currentBrowser() else {
                 progressController?.append("Unable to locate the Horos browser to update the viewer.")
@@ -300,15 +331,24 @@ extension TotalSegmentatorHorosPlugin {
                 return
             }
 
-            let viewer = ViewerController.frontMostDisplayed2DViewer() ?? self.openViewer(for: exportContext, browser: browser)
+            let viewer: ViewerController?
+            if hasRTStructOverlays {
+                viewer = ViewerController.frontMostDisplayed2DViewer() ?? self.openViewer(for: exportContext, browser: browser)
+            } else {
+                viewer = self.openViewer(for: exportContext, browser: browser) ?? ViewerController.frontMostDisplayed2DViewer()
+            }
 
             guard let activeViewer = viewer else {
-                progressController?.append("Unable to open a viewer for RT Struct overlay.")
+                progressController?.append("Unable to open a viewer for ROI overlay.")
                 semaphore.signal()
                 return
             }
 
+            var importedVolumetricROICount = 0
+            var importedVolumetricLabelCount = 0
+            var skippedVolumetricSliceCount = 0
             var appliedOverlayCount = 0
+
             for path in importResult.rtStructPaths {
                 if self.applyRTStructOverlay(from: path, to: activeViewer) {
                     appliedOverlayCount += 1
@@ -319,47 +359,95 @@ extension TotalSegmentatorHorosPlugin {
                 }
             }
 
-            if appliedOverlayCount == 0 {
-                progressController?.append("No RT Struct overlays could be applied to the active viewer.")
+            if appliedOverlayCount > 0 && hasVolumetricManifest {
+                progressController?.append("RT Struct overlay applied; volumetric brush ROI import remains available as fallback but was not needed.")
+            }
+
+            if appliedOverlayCount == 0,
+               let manifestPath = importResult.volumetricROIManifestPath,
+               !manifestPath.isEmpty {
+                let summary = TSVolumetricROIImporter.importVolumetricROIs(fromManifest: manifestPath, into: activeViewer)
+                importedVolumetricROICount = (summary["roi_count"] as? NSNumber)?.intValue ?? 0
+                importedVolumetricLabelCount = (summary["label_count"] as? NSNumber)?.intValue ?? 0
+                skippedVolumetricSliceCount = (summary["skipped_slice_count"] as? NSNumber)?.intValue ?? 0
+
+                if let errorMessage = summary["error"] as? String, !errorMessage.isEmpty {
+                    progressController?.append("Volumetric ROI import warning: \(errorMessage)")
+                    self.logToConsole("Volumetric ROI import warning: \(errorMessage)")
+                }
+
+                if importedVolumetricROICount > 0 {
+                    progressController?.append("Created \(importedVolumetricROICount) volumetric brush ROI slice(s) across \(importedVolumetricLabelCount) label(s).")
+                    if skippedVolumetricSliceCount > 0 {
+                        progressController?.append("Skipped \(skippedVolumetricSliceCount) empty or unmatched volumetric ROI slice(s).")
+                    }
+                }
+            }
+
+            if importedVolumetricROICount == 0 && appliedOverlayCount == 0 {
+                progressController?.append("No segmentation ROIs could be applied to the active viewer.")
                 semaphore.signal()
                 return
             }
 
-            progressController?.append("Waiting for Horos to finish converting RT Struct overlays into ROIs…")
-            let importedObjectIDs = importResult.importedObjectIDs
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                let conversionCompleted = self.waitForRTStructConversionsToFinish(progressController: progressController)
-
-                DispatchQueue.main.async {
-                    if conversionCompleted {
-                        self.reloadROIs(in: activeViewer)
-                        self.persistROIs(from: activeViewer)
-
-                        if let database = browser.database,
-                           let importedObjects = database.objects(withIDs: importedObjectIDs) as? [NSManagedObject] {
-                            let importedSeries = importedObjects.compactMap { $0 as? DicomSeries }
-                            let targetSeries = importedSeries.first { series in
-                                guard let modality = series.modality else { return false }
-                                return modality.uppercased() == "RTSTRUCT"
-                            } ?? importedSeries.first
-
-                            if let series = targetSeries, let study = series.study {
-                                browser.selectStudy(with: study.objectID)
-                            }
-                        }
-
-                        activeViewer.refresh()
-                        activeViewer.window?.makeKeyAndOrderFront(nil)
-                        activeViewer.needsDisplayUpdate()
-                        progressController?.append("Applied \(appliedOverlayCount) RT Struct overlay(s) and stored the corresponding ROIs in Horos.")
-                    } else {
-                        progressController?.append("Timed out while waiting for Horos to finish converting RT Struct overlays.")
-                        self.logToConsole("Timed out while waiting for Horos to convert RT Struct overlays.")
-                    }
-
-                    semaphore.signal()
+            let finishVisualization: () -> Void = {
+                if appliedOverlayCount > 0 {
+                    self.reloadROIs(in: activeViewer)
+                    self.persistROIs(from: activeViewer)
+                } else if importedVolumetricROICount > 0 {
+                    self.persistROIs(from: activeViewer)
                 }
+
+                if let database = browser.database,
+                   let importedObjects = database.objects(withIDs: importResult.importedObjectIDs) as? [NSManagedObject] {
+                    let importedSeries = importedObjects.compactMap { $0 as? DicomSeries }
+                    let targetSeries = importedSeries.first { series in
+                        guard let modality = series.modality else { return false }
+                        return modality.uppercased() == "RTSTRUCT"
+                    } ?? importedSeries.first
+
+                    if let series = targetSeries, let study = series.study {
+                        browser.selectStudy(with: study.objectID)
+                    }
+                }
+
+                activeViewer.refresh()
+                activeViewer.window?.makeKeyAndOrderFront(nil)
+                activeViewer.needsDisplayUpdate()
+                self.roiResyncCoordinator.register(
+                    viewer: activeViewer,
+                    importResult: importResult,
+                    executable: executable,
+                    owner: self
+                )
+
+                if importedVolumetricROICount > 0 {
+                    progressController?.append("Stored volumetric brush ROIs in Horos.")
+                } else {
+                    progressController?.append("Applied \(appliedOverlayCount) RT Struct overlay(s) and stored the corresponding ROIs in Horos.")
+                }
+
+                semaphore.signal()
+            }
+
+            if appliedOverlayCount > 0 {
+                progressController?.append("Waiting for Horos to finish converting RT Struct overlays into ROIs…")
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let conversionCompleted = self.waitForRTStructConversionsToFinish(progressController: progressController)
+
+                    DispatchQueue.main.async {
+                        if conversionCompleted {
+                            finishVisualization()
+                        } else {
+                            progressController?.append("Timed out while waiting for Horos to finish converting RT Struct overlays.")
+                            self.logToConsole("Timed out while waiting for Horos to convert RT Struct overlays.")
+                            semaphore.signal()
+                        }
+                    }
+                }
+            } else {
+                finishVisualization()
             }
         }
 
@@ -408,7 +496,7 @@ extension TotalSegmentatorHorosPlugin {
         return false
     }
 
-    private func reloadROIs(in viewer: ViewerController) {
+    fileprivate func reloadROIs(in viewer: ViewerController) {
         let maxIndex = Int(viewer.maxMovieIndex())
         if maxIndex >= 0 {
             for index in 0...maxIndex {
@@ -420,7 +508,7 @@ extension TotalSegmentatorHorosPlugin {
     }
 
     private func waitForRTStructConversionsToFinish(
-        progressController: SegmentationProgressWindowController?,
+        progressController: SegmentationProgressReporting?,
         timeout: TimeInterval = 120
     ) -> Bool {
         guard let manager = ThreadsManager.`default`() else {
@@ -446,7 +534,7 @@ extension TotalSegmentatorHorosPlugin {
         return false
     }
 
-    private func persistROIs(from viewer: ViewerController) {
+    fileprivate func persistROIs(from viewer: ViewerController) {
         let maxIndex = Int(viewer.maxMovieIndex())
         if maxIndex >= 0 {
             for index in 0...maxIndex {
@@ -455,6 +543,185 @@ extension TotalSegmentatorHorosPlugin {
         } else {
             viewer.saveROI(Int(viewer.curMovieIndex()))
         }
+    }
+
+    fileprivate func totalSegmentatorLabelNames(from manifestPath: String?) -> Set<String> {
+        guard let manifestPath, !manifestPath.isEmpty,
+              let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let labels = json["labels"] as? [[String: Any]] else {
+            return []
+        }
+
+        return Set(labels.compactMap { label in
+            (label["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty })
+    }
+
+    fileprivate func viewerHasTotalSegmentatorROIs(_ viewer: ViewerController, labelNames: Set<String>) -> Bool {
+        guard let roiSeriesList = viewer.roiList() else {
+            return false
+        }
+
+        for case let sliceList as NSArray in roiSeriesList {
+            for roi in sliceList {
+                let name = stringValue(forKey: "name", from: roi)
+                let comments = stringValue(forKey: "comments", from: roi)
+                if comments == TotalSegmentatorROIResyncCoordinator.generatedROIComment {
+                    return true
+                }
+                if let name, labelNames.contains(name) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    fileprivate func makeVolumetricProjectionRequest(
+        viewer: ViewerController,
+        manifestPath: String,
+        executable: ExecutableResolution
+    ) -> VolumetricProjectionRequest? {
+        guard !manifestPath.isEmpty,
+              let manifest = volumetricManifest(at: manifestPath),
+              let sourcePath = manifest["source_segmentation_path"] as? String,
+              !sourcePath.isEmpty,
+              FileManager.default.fileExists(atPath: sourcePath) else {
+            return nil
+        }
+
+        let planes = viewerGeometryPlanes(for: viewer)
+        guard !planes.isEmpty,
+              let planeData = try? JSONSerialization.data(withJSONObject: planes, options: [.sortedKeys]) else {
+            return nil
+        }
+
+        let geometryHash = SHA256.hash(data: planeData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let manifestURL = URL(fileURLWithPath: manifestPath)
+        let roiRoot = manifestURL.deletingLastPathComponent()
+        let outputDirectory = roiRoot
+            .appendingPathComponent("projections", isDirectory: true)
+            .appendingPathComponent(geometryHash, isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            let scriptURL = try prepareVolumetricProjectionScript(at: outputDirectory)
+            let configurationURL = try writeVolumetricProjectionConfiguration(
+                to: outputDirectory,
+                manifestPath: manifestPath,
+                outputDirectory: outputDirectory,
+                planes: planes
+            )
+            return VolumetricProjectionRequest(
+                scriptURL: scriptURL,
+                configurationURL: configurationURL,
+                executable: executable,
+                geometryHash: geometryHash
+            )
+        } catch {
+            logToConsole("Failed to prepare volumetric ROI projection: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    fileprivate func generateProjectedVolumetricManifest(request: VolumetricProjectionRequest) -> String? {
+        let result = runPythonProcess(
+            using: request.executable,
+            arguments: [request.scriptURL.path, "--config", request.configurationURL.path],
+            progressController: nil
+        )
+
+        if let error = result.error {
+            logToConsole("Volumetric ROI projection failed: \(error.localizedDescription)")
+            return nil
+        }
+
+        guard result.terminationStatus == 0,
+              let stdout = String(data: result.stdout, encoding: .utf8) else {
+            let stderr = String(data: result.stderr, encoding: .utf8) ?? ""
+            logToConsole("Volumetric ROI projection failed with status \(result.terminationStatus): \(stderr)")
+            return nil
+        }
+
+        let lines = stdout
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let lastLine = lines.last,
+              let data = lastLine.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let manifestPath = payload["manifest_path"] as? String,
+              !manifestPath.isEmpty else {
+            logToConsole("Volumetric ROI projection returned an invalid response.")
+            return nil
+        }
+
+        return manifestPath
+    }
+
+    fileprivate func viewerGeometryPlanes(for viewer: ViewerController) -> [[String: Any]] {
+        guard let pixList = viewer.pixList() else {
+            return []
+        }
+
+        var planes: [[String: Any]] = []
+        planes.reserveCapacity(pixList.count)
+
+        for (index, element) in pixList.enumerated() {
+            guard let pix = element as? DCMPix else {
+                continue
+            }
+
+            var orientation = [Double](repeating: 0, count: 9)
+            orientation.withUnsafeMutableBufferPointer { buffer in
+                pix.orientationDouble(buffer.baseAddress)
+            }
+
+            let rowCosine = Array(orientation[0..<3])
+            let columnCosine = Array(orientation[3..<6])
+            let rows = Int(pix.pheight)
+            let columns = Int(pix.pwidth)
+            guard rows > 0, columns > 0 else {
+                continue
+            }
+
+            planes.append([
+                "slice_index": index,
+                "sop_instance_uid": "viewer_slice_\(index)",
+                "rows": rows,
+                "columns": columns,
+                "row_spacing": Double(pix.pixelSpacingY),
+                "column_spacing": Double(pix.pixelSpacingX),
+                "image_position": [Double(pix.originX), Double(pix.originY), Double(pix.originZ)],
+                "row_cosine": rowCosine,
+                "column_cosine": columnCosine
+            ])
+        }
+
+        return planes
+    }
+
+    private func volumetricManifest(at path: String) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    private func stringValue(forKey key: String, from object: Any) -> String? {
+        guard let object = object as? NSObject else {
+            return nil
+        }
+        let selector = NSSelectorFromString(key)
+        guard object.responds(to: selector) else {
+            return nil
+        }
+        return object.value(forKey: key) as? String
     }
 
     func validateSegmentationOutput(at url: URL) throws {
@@ -553,5 +820,183 @@ extension TotalSegmentatorHorosPlugin {
         }
 
         return url.lastPathComponent.lowercased().contains("rtstruct")
+    }
+}
+
+struct VolumetricProjectionRequest {
+    let scriptURL: URL
+    let configurationURL: URL
+    let executable: ExecutableResolution
+    let geometryHash: String
+}
+
+final class TotalSegmentatorROIResyncCoordinator {
+    static let generatedROIComment = "Generated by TotalSegmentator volumetric ROI importer"
+
+    private final class Context {
+        weak var viewer: ViewerController?
+        weak var owner: TotalSegmentatorHorosPlugin?
+        let importResult: SegmentationImportResult
+        let executable: ExecutableResolution
+        let labelNames: Set<String>
+        var lastProjectionGeometryHash: String?
+        var projectionInProgress = false
+
+        init(
+            viewer: ViewerController,
+            owner: TotalSegmentatorHorosPlugin,
+            importResult: SegmentationImportResult,
+            executable: ExecutableResolution,
+            labelNames: Set<String>
+        ) {
+            self.viewer = viewer
+            self.owner = owner
+            self.importResult = importResult
+            self.executable = executable
+            self.labelNames = labelNames
+        }
+    }
+
+    private let projectionQueue = DispatchQueue(label: "org.totalsegmentator.horos.roi-resync", qos: .utility)
+    private var context: Context?
+    private var observerTokens: [NSObjectProtocol] = []
+    private var pendingResync: DispatchWorkItem?
+
+    func register(
+        viewer: ViewerController,
+        importResult: SegmentationImportResult,
+        executable: ExecutableResolution,
+        owner: TotalSegmentatorHorosPlugin
+    ) {
+        let labels = owner.totalSegmentatorLabelNames(from: importResult.volumetricROIManifestPath)
+        context = Context(
+            viewer: viewer,
+            owner: owner,
+            importResult: importResult,
+            executable: executable,
+            labelNames: labels
+        )
+        startObservingIfNeeded()
+    }
+
+    private func startObservingIfNeeded() {
+        guard observerTokens.isEmpty else {
+            return
+        }
+
+        let center = NotificationCenter.default
+        let names = [
+            NSNotification.Name.OsirixLLMPRReslice,
+            NSNotification.Name.OsirixViewerDidChange,
+            NSNotification.Name.OsirixViewerControllerDidLoadImages,
+            NSNotification.Name.OsirixCloseViewer
+        ]
+
+        observerTokens = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                self?.handle(notification)
+            }
+        }
+    }
+
+    private func stopObserving() {
+        let center = NotificationCenter.default
+        observerTokens.forEach { center.removeObserver($0) }
+        observerTokens.removeAll()
+        pendingResync?.cancel()
+        pendingResync = nil
+    }
+
+    private func handle(_ notification: Notification) {
+        guard let context else {
+            stopObserving()
+            return
+        }
+
+        if notification.name == NSNotification.Name.OsirixCloseViewer {
+            if let object = notification.object as AnyObject?,
+               let viewer = context.viewer,
+               object !== viewer {
+                return
+            }
+            self.context = nil
+            stopObserving()
+            return
+        }
+
+        if let object = notification.object as? ViewerController,
+           let viewer = context.viewer,
+           object !== viewer {
+            return
+        }
+
+        scheduleResync()
+    }
+
+    private func scheduleResync() {
+        pendingResync?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.resync()
+        }
+        pendingResync = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+    }
+
+    private func resync() {
+        guard let context,
+              let viewer = context.viewer,
+              let owner = context.owner else {
+            self.context = nil
+            stopObserving()
+            return
+        }
+
+        owner.reloadROIs(in: viewer)
+        viewer.refresh()
+        viewer.needsDisplayUpdate()
+
+        if owner.viewerHasTotalSegmentatorROIs(viewer, labelNames: context.labelNames) {
+            owner.persistROIs(from: viewer)
+            return
+        }
+
+        guard let manifestPath = context.importResult.volumetricROIManifestPath,
+              let request = owner.makeVolumetricProjectionRequest(
+                  viewer: viewer,
+                  manifestPath: manifestPath,
+                  executable: context.executable
+              ) else {
+            return
+        }
+
+        if context.projectionInProgress {
+            return
+        }
+
+        context.projectionInProgress = true
+        context.lastProjectionGeometryHash = request.geometryHash
+
+        projectionQueue.async { [weak self, weak owner, weak viewer] in
+            let projectedManifestPath = owner?.generateProjectedVolumetricManifest(request: request)
+
+            DispatchQueue.main.async {
+                guard let self,
+                      let context = self.context,
+                      let activeViewer = viewer,
+                      activeViewer === context.viewer else {
+                    return
+                }
+
+                context.projectionInProgress = false
+                guard let projectedManifestPath else {
+                    return
+                }
+
+                _ = TSVolumetricROIImporter.importVolumetricROIs(fromManifest: projectedManifestPath, into: activeViewer)
+                context.owner?.persistROIs(from: activeViewer)
+                activeViewer.refresh()
+                activeViewer.needsDisplayUpdate()
+            }
+        }
     }
 }

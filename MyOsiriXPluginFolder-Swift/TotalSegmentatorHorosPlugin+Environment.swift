@@ -19,17 +19,14 @@ private enum Dcm2NiixBootstrap {
 }
 
 extension TotalSegmentatorHorosPlugin {
-    func performInitialSetupIfNeeded(displayProgress: Bool = false) {
+    func performInitialSetupIfNeeded(progressController: SegmentationProgressReporting? = nil) {
         autoreleasepool {
             var preferencesState = preferences.effectivePreferences()
             var updatedPreferences = preferencesState
 
-            let progressController: SegmentationProgressWindowController? = displayProgress ? presentSetupProgressWindowIfNeeded(initialMessage: "Preparing TotalSegmentator environment…") : nil
+            progressController?.append("Preparing TotalSegmentator environment…")
 
             guard var executableResolution = resolvePythonInterpreter(using: preferencesState) else {
-                if displayProgress {
-                    finishSetupProgress(with: nil)
-                }
                 presentEnvironmentSetupFailureInstructions()
                 return
             }
@@ -47,34 +44,24 @@ extension TotalSegmentatorHorosPlugin {
                         self?.executablePathField?.stringValue = managed.pythonPath
                     }
                 } else {
-                    if displayProgress {
-                        finishSetupProgress(with: nil)
-                    }
                     presentEnvironmentSetupFailureInstructions()
                     return
                 }
             }
 
             guard pythonModuleAvailable("totalsegmentator", using: executableResolution) else {
-                if displayProgress {
-                    finishSetupProgress(with: nil)
-                }
                 presentEnvironmentSetupFailureInstructions()
                 return
             }
 
             let setupSucceeded = ensureTotalSegmentatorSetup(using: executableResolution, progressController: progressController)
             if !setupSucceeded {
-                if displayProgress {
-                    finishSetupProgress(with: "TotalSegmentator setup encountered issues. Please review the log output.")
-                }
+                progressController?.append("TotalSegmentator setup encountered issues. Please review the log output.")
                 return
             }
 
             guard let dcm2niixPath = ensureDcm2Niix(using: executableResolution, progressController: progressController) else {
-                if displayProgress {
-                    finishSetupProgress(with: "Unable to prepare dcm2niix. Please review the displayed instructions.")
-                }
+                progressController?.append("Unable to prepare dcm2niix. Please review the displayed instructions.")
                 return
             }
 
@@ -83,61 +70,8 @@ extension TotalSegmentatorHorosPlugin {
                 preferences.store(updatedPreferences)
             }
 
-            if displayProgress {
-                finishSetupProgress(with: "Initial setup complete.")
-            }
+            progressController?.append("Initial setup complete.")
         }
-    }
-
-    private func presentSetupProgressWindowIfNeeded(initialMessage: String? = nil) -> SegmentationProgressWindowController {
-        if Thread.isMainThread {
-            return presentSetupProgressWindowOnMain(initialMessage: initialMessage)
-        }
-
-        var controller: SegmentationProgressWindowController!
-        DispatchQueue.main.sync {
-            controller = self.presentSetupProgressWindowOnMain(initialMessage: initialMessage)
-        }
-        return controller
-    }
-
-    private func finishSetupProgress(with message: String?) {
-        guard let controller = setupProgressWindowController else { return }
-
-        DispatchQueue.main.async {
-            if let message = message, !message.isEmpty {
-                controller.append(message)
-            }
-            controller.markProcessFinished()
-            controller.close(after: 0.1)
-            self.logToConsole("Progress window closed")
-        }
-
-        setupProgressWindowController = nil
-    }
-
-    private func presentSetupProgressWindowOnMain(initialMessage: String?) -> SegmentationProgressWindowController {
-        precondition(Thread.isMainThread, "UI work must happen on main thread")
-
-        if let controller = setupProgressWindowController {
-            if let message = initialMessage {
-                controller.append(message)
-            }
-            return controller
-        }
-
-        let controller = SegmentationProgressWindowController()
-        setupProgressWindowController = controller
-
-        controller.showWindow(nil)
-        controller.start()
-        if let message = initialMessage {
-            controller.append(message)
-        } else {
-            controller.append("Preparing TotalSegmentator environment…")
-        }
-
-        return controller
     }
 
     func pythonModuleAvailable(_ moduleName: String, using resolution: ExecutableResolution) -> Bool {
@@ -168,7 +102,7 @@ sys.exit(0 if spec is not None else 1)
         using resolution: ExecutableResolution,
         arguments: [String],
         environment customEnvironment: [String: String]? = nil,
-        progressController: SegmentationProgressWindowController?
+        progressController: SegmentationProgressReporting?
     ) -> ProcessExecutionResult {
         let process = Process()
         process.executableURL = resolution.executableURL
@@ -204,10 +138,8 @@ sys.exit(0 if spec is not None else 1)
             capturedStdout.append(data)
 
             if let message = String(data: data, encoding: .utf8), !message.isEmpty {
-                DispatchQueue.main.async {
-                    progressController?.append(message)
-                    self?.logToConsole(message)
-                }
+                progressController?.append(message)
+                self?.logToConsole(message)
             }
         }
 
@@ -217,10 +149,8 @@ sys.exit(0 if spec is not None else 1)
             capturedStderr.append(data)
 
             if let message = String(data: data, encoding: .utf8), !message.isEmpty {
-                DispatchQueue.main.async {
-                    progressController?.append(message)
-                    self?.logToConsole(message)
-                }
+                progressController?.append(message)
+                self?.logToConsole(message)
             }
         }
 
@@ -238,7 +168,20 @@ sys.exit(0 if spec is not None else 1)
             return ProcessExecutionResult(terminationStatus: -1, stdout: capturedStdout, stderr: capturedStderr, error: error)
         }
 
+        var didRequestCancellation = false
+        while process.isRunning {
+            if progressController?.isCancellationRequested == true {
+                didRequestCancellation = true
+                progressController?.append("Cancellation requested. Terminating current process…")
+                process.terminate()
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
         process.waitUntilExit()
+        if didRequestCancellation {
+            progressController?.append("Process cancelled.")
+        }
         progressController?.append("TotalSegmentator finished with status \(process.terminationStatus). Validating outputs…")
 
         stdoutHandle.readabilityHandler = nil
@@ -257,7 +200,7 @@ sys.exit(0 if spec is not None else 1)
 
     private func bootstrapManagedPythonEnvironment(
         baseResolution: ExecutableResolution,
-        progressController: SegmentationProgressWindowController?
+        progressController: SegmentationProgressReporting?
     ) -> (resolution: ExecutableResolution, pythonPath: String)? {
         guard let environmentDirectory = managedEnvironmentDirectory() else {
             logToConsole("Failed to resolve a location for the managed Python environment.")
@@ -354,7 +297,7 @@ sys.exit(0 if spec is not None else 1)
         return environmentDirectory
     }
 
-    private func ensureTotalSegmentatorSetup(using resolution: ExecutableResolution, progressController: SegmentationProgressWindowController?) -> Bool {
+    private func ensureTotalSegmentatorSetup(using resolution: ExecutableResolution, progressController: SegmentationProgressReporting?) -> Bool {
         progressController?.append("Ensuring TotalSegmentator configuration and weights are available…")
 
         let script = """
@@ -405,7 +348,7 @@ print("__RESULT__" + json.dumps({"status": "ok"}))
         return true
     }
 
-    private func ensureDcm2Niix(using resolution: ExecutableResolution, progressController: SegmentationProgressWindowController?) -> String? {
+    private func ensureDcm2Niix(using resolution: ExecutableResolution, progressController: SegmentationProgressReporting?) -> String? {
         progressController?.append("Checking for dcm2niix availability…")
 
         let script = """
@@ -527,7 +470,7 @@ print("__RESULT__" + json.dumps({"path": result}))
     }
 
     private func attemptLocalDcm2NiixBootstrap(
-        progressController: SegmentationProgressWindowController?,
+        progressController: SegmentationProgressReporting?,
         bootstrapFailure: inout Dcm2NiixBootstrapError?
     ) -> String? {
         guard let supportDirectory = pluginSupportDirectory() else {

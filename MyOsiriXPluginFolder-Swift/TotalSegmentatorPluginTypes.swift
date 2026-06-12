@@ -28,6 +28,149 @@ struct ProcessExecutionResult {
     let error: Error?
 }
 
+protocol SegmentationProgressReporting: AnyObject {
+    var capturedLog: String { get }
+    var isCancellationRequested: Bool { get }
+
+    func append(_ message: String)
+    func markProcessFinished()
+    func close()
+    func close(after delay: TimeInterval)
+}
+
+final class TotalSegmentatorActivityReporter: SegmentationProgressReporting {
+    private let thread: Thread
+    private let manager: ThreadsManager?
+    private let lock = NSLock()
+    private var didClose = false
+    private var logStorage = ""
+
+    var capturedLog: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return logStorage
+    }
+
+    var isCancellationRequested: Bool {
+        if thread.isCancelled {
+            return true
+        }
+        return (thread.value(forKey: "isCancelled") as? Bool) ?? false
+    }
+
+    init(thread: Thread = .current, manager: ThreadsManager? = ThreadsManager.`default`()) {
+        self.thread = thread
+        self.manager = manager
+        Self.configureForActivity(thread)
+        update(status: "Starting TotalSegmentator", details: "Preparing segmentation run.", progress: 0.01)
+    }
+
+    static func startActivityThread(named name: String, _ body: @escaping () -> Void) {
+        let thread = Thread {
+            autoreleasepool {
+                body()
+            }
+        }
+        thread.name = name
+        configureForActivity(thread)
+
+        if let manager = ThreadsManager.`default`() {
+            manager.addThreadAndStart(thread)
+        } else {
+            thread.start()
+        }
+    }
+
+    func append(_ message: String) {
+        let normalized = message.hasSuffix("\n") ? message : message + "\n"
+        lock.lock()
+        logStorage.append(normalized)
+        lock.unlock()
+
+        let status = Self.statusLine(from: message)
+        let progress = Self.progressEstimate(for: message)
+        update(status: status, details: status, progress: progress)
+    }
+
+    func markProcessFinished() {
+        update(status: isCancellationRequested ? "Cancelled" : "Finished", details: "TotalSegmentator run completed.", progress: 1.0)
+    }
+
+    func close(after delay: TimeInterval) {
+        if delay <= 0 {
+            close()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.close()
+        }
+    }
+
+    func close() {
+        lock.lock()
+        if didClose {
+            lock.unlock()
+            return
+        }
+        didClose = true
+        lock.unlock()
+
+        if let manager = manager {
+            manager.removeThread(thread)
+        }
+    }
+
+    private func update(status: String, details: String, progress: Double?) {
+        setThreadValue(status, forKey: "status")
+        setThreadValue(details, forKey: "progressDetails")
+        if let progress = progress {
+            setThreadValue(max(0.0, min(progress, 1.0)), forKey: "progress")
+        }
+
+        DispatchQueue.main.async {
+            BrowserController.updateActivity()
+        }
+    }
+
+    private func setThreadValue(_ value: Any, forKey key: String) {
+        thread.setValue(value, forKey: key)
+    }
+
+    private static func configureForActivity(_ thread: Thread) {
+        thread.name = thread.name ?? "TotalSegmentator"
+        thread.setValue(UUID().uuidString, forKey: "uniqueId")
+        thread.setValue(true, forKey: "supportsCancel")
+        thread.setValue(true, forKey: "supportsBackgrounding")
+        thread.setValue(false, forKey: "isCancelled")
+        thread.setValue(0.0, forKey: "progress")
+        thread.setValue("Queued", forKey: "status")
+        thread.setValue("TotalSegmentator", forKey: "progressDetails")
+    }
+
+    private static func statusLine(from message: String) -> String {
+        let trimmed = message
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? "Running TotalSegmentator"
+        return String(trimmed.prefix(160))
+    }
+
+    private static func progressEstimate(for message: String) -> Double? {
+        let lowercased = message.lowercased()
+        if lowercased.contains("preparing totalsegmentator environment") { return 0.03 }
+        if lowercased.contains("ensuring totalsegmentator") { return 0.06 }
+        if lowercased.contains("initial setup complete") { return 0.10 }
+        if lowercased.contains("running totalsegmentator") { return 0.15 }
+        if lowercased.contains("converted nifti") { return 0.82 }
+        if lowercased.contains("applying segmentation rois") { return 0.88 }
+        if lowercased.contains("created") && lowercased.contains("volumetric brush roi") { return 0.94 }
+        if lowercased.contains("applied") && lowercased.contains("rt struct") { return 0.96 }
+        if lowercased.contains("segmentation finished successfully") { return 1.0 }
+        return nil
+    }
+}
+
 enum SegmentationOutputType: Equatable {
     case dicom
     case nifti
@@ -80,6 +223,7 @@ struct SegmentationImportResult {
     let rtStructPaths: [String]
     let importedObjectIDs: [NSManagedObjectID]
     let outputType: SegmentationOutputType
+    let volumetricROIManifestPath: String?
 }
 
 enum NiftiConversionError: LocalizedError {

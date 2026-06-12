@@ -319,6 +319,10 @@ extension TotalSegmentatorHorosPlugin {
     }
 
     private func normalizeSeriesCollection(_ value: Any?) -> [DicomSeries] {
+        if let nsSet = value as? NSSet {
+            return nsSet.allObjects.compactMap { $0 as? DicomSeries }
+        }
+
         if let series = value as? [DicomSeries] {
             return series
         }
@@ -329,10 +333,6 @@ extension TotalSegmentatorHorosPlugin {
 
         if let orderedSet = value as? NSOrderedSet {
             return orderedSet.array.compactMap { $0 as? DicomSeries }
-        }
-
-        if let nsSet = value as? NSSet {
-            return nsSet.allObjects.compactMap { $0 as? DicomSeries }
         }
 
         if let set = value as? Set<DicomSeries> {
@@ -351,6 +351,10 @@ extension TotalSegmentatorHorosPlugin {
     }
 
     private func normalizePaths(from value: Any?) -> [String] {
+        if let nsSet = value as? NSSet {
+            return nsSet.allObjects.compactMap { $0 as? String }
+        }
+
         if let paths = value as? [String] {
             return paths
         }
@@ -361,10 +365,6 @@ extension TotalSegmentatorHorosPlugin {
 
         if let orderedSet = value as? NSOrderedSet {
             return orderedSet.array.compactMap { $0 as? String }
-        }
-
-        if let nsSet = value as? NSSet {
-            return nsSet.allObjects.compactMap { $0 as? String }
         }
 
         if let set = value as? Set<String> {

@@ -12,7 +12,7 @@ import Cocoa
 // Window that displays logs and progress while TotalSegmentator runs.
 // It was designed to handle updates coming from outside the main thread without freezing the UI.
 
-final class SegmentationProgressWindowController: NSWindowController {
+final class SegmentationProgressWindowController: NSWindowController, SegmentationProgressReporting {
     private static let logFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
     private lazy var textView: NSTextView = {
@@ -53,6 +53,21 @@ final class SegmentationProgressWindowController: NSWindowController {
 
     private var cancelHandler: (() -> Void)?
     private var didConfigureUI = false
+    private let logLock = NSLock()
+    private var logStorage = ""
+    private var didRequestCancellation = false
+
+    var capturedLog: String {
+        logLock.lock()
+        defer { logLock.unlock() }
+        return logStorage
+    }
+
+    var isCancellationRequested: Bool {
+        logLock.lock()
+        defer { logLock.unlock() }
+        return didRequestCancellation
+    }
 
     init() {
         super.init(window: nil)
@@ -64,15 +79,22 @@ final class SegmentationProgressWindowController: NSWindowController {
 
     func start() {
         performOnMain { controller in
+            controller.logLock.lock()
+            controller.didRequestCancellation = false
+            controller.logLock.unlock()
             controller.progressIndicator.startAnimation(nil)
             controller.append("Starting TotalSegmentator…")
         }
     }
 
     func append(_ message: String) {
+        let normalized = message.hasSuffix("\n") ? message : message + "\n"
+        logLock.lock()
+        logStorage.append(normalized)
+        logLock.unlock()
+
         performOnMain { controller in
             guard let textStorage = controller.textView.textStorage else { return }
-            let normalized = message.hasSuffix("\n") ? message : message + "\n"
             let attributes: [NSAttributedString.Key: Any] = [
                 .foregroundColor: NSColor.labelColor,
                 .font: Self.logFont
@@ -198,6 +220,9 @@ final class SegmentationProgressWindowController: NSWindowController {
 
     @objc private func cancelAction() {
         cancelButton.isEnabled = false
+        logLock.lock()
+        didRequestCancellation = true
+        logLock.unlock()
         let handler = cancelHandler
         cancelHandler = nil
         handler?()

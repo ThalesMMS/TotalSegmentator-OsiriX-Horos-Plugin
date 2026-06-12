@@ -129,7 +129,7 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
                 ),
                 TaskOption(
                     title: "Brain (structures)",
-                    value: "brain",
+                    value: "brain_structures",
                     description: NSLocalizedString("Segments brain structures. Best for studies where intracranial anatomy is the primary target.", comment: "Task description for brain task")
                 )
             ]
@@ -200,9 +200,9 @@ class TotalSegmentatorHorosPlugin: PluginFilter {
     }
 
     let preferences = SegmentationPreferences()
-    var progressWindowController: SegmentationProgressWindowController?
-    var setupProgressWindowController: SegmentationProgressWindowController?
+    var errorLogWindowController: SegmentationProgressWindowController?
     let auditQueue = DispatchQueue(label: "org.totalsegmentator.horos.audit", qos: .utility)
+    let roiResyncCoordinator = TotalSegmentatorROIResyncCoordinator()
     var classSelectionController: ClassSelectionWindowController?
     var runConfigurationController: RunSegmentationWindowController?
     var availableClassOptionsCache: [String: [String]] = [:]

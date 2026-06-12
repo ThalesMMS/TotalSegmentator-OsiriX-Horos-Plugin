@@ -9,7 +9,7 @@
 
 ## Overview
 
-This private development repository packages the [TotalSegmentator](https://github.com/wasserth/TotalSegmentator) pipeline as a macOS Horos/OsiriX plugin for DICOM studies. It exports the active CT or MR series, runs the Python TotalSegmentator and nnUNet segmentation flow, then re-imports the generated results as RT-Struct overlays in the current viewer.
+This private development repository packages the [TotalSegmentator](https://github.com/wasserth/TotalSegmentator) pipeline as a macOS Horos/OsiriX plugin for DICOM studies. It exports the active CT or MR series, runs the Python TotalSegmentator and nnUNet segmentation flow, then re-imports the generated results as volumetric brush/tPlain ROIs in the current viewer. RT-Struct objects are still generated and imported as database artifacts for interoperability, but the displayed ROIs are built directly from the voxel masks.
 
 The repository still ships the upstream `totalsegmentator/` sources because the plugin reuses internal scripts and helpers, but the main purpose here is the native Swift plugin, the host-app bridge, and the packaging flow for Horos and OsiriX.
 
@@ -19,7 +19,8 @@ The repository still ships the upstream `totalsegmentator/` sources because the 
 
 - ✅ End-to-end export → segmentation → import flow works for 2D CT/MR series.
 - ✅ Isolated Python environment bootstrapped under `~/Library/Application Support/TotalSegmentatorHorosPlugin`.
-- ✅ RT-Struct overlays applied to the active viewer (Horos ≥ 4.0.1 required).
+- ✅ Volumetric brush/tPlain ROIs are generated from NIfTI voxel masks and applied to the active viewer (Horos ≥ 4.0.1 required).
+- ✅ RT-Struct files are still generated/imported for interoperability and fallback.
 - ⚠️ Configuration UI is minimal; advanced class selection is still limited.
 - ⚠️ Horos must be running in English to avoid localization issues in menus.
 - 🚧 Automated tests and formal distribution (installer `.pkg`) are not yet available.
@@ -102,13 +103,13 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 1. Open a study and ensure the active series is 2D (CT or MR).
 2. Choose `Plugins ▸ TotalSegmentator ▸ Run TotalSegmentator`.
 3. Adjust the basic settings (task, device, output) and press **Run**.
-   The task picker groups targets by anatomy and shows helper text for the selected task. Use the **Fast mode** checkbox when you want the TotalSegmentator `--fast` path; the task picker only selects the anatomical task.
+   The task picker groups targets by anatomy and shows helper text for the selected task. Use the **Fast mode** checkbox when you want the TotalSegmentator `--fast` path; the task picker only selects the anatomical task. The plugin internally requests NIfTI output so it can preserve the voxel masks as volumetric ROIs, even when the UI or additional arguments request DICOM output.
 4. Watch the progress window. On success the plugin:
-   - imports the generated DICOM files,
-   - builds the RT-Struct objects,
-   - applies the ROIs to the active viewer.
+   - imports the generated DICOM/RT-Struct artifacts,
+   - creates a per-slice volumetric ROI manifest from the NIfTI masks,
+   - inserts the masks into Horos as brush/tPlain ROIs across the source slices.
 
-> **Tip:** to transfer RT-Struct to another workstation, export the newly imported objects from Horos after the segmentation finishes.
+> **Tip:** to transfer RT-Struct to another workstation, export the newly imported objects from Horos after the segmentation finishes. For in-Horos volumetry, use the generated brush ROIs in the original series.
 
 ---
 
@@ -120,7 +121,8 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 | “rt_utils” missing error | Python dependency absent | Execute `~/Library/.../PythonEnvironment/bin/pip install rt_utils` |
 | GPU resampling not used | `change_spacing()` is silent in CPU-only/no-CUDA mode unless a GPU backend was explicitly selected. Messages are emitted for GPU selection, GPU failure, CUDA-with-missing-cuCIM (`[TotalSegmentator] CUDA detected, but GPU resampling dependencies are missing...`), or MPS detection. | Install `cucim`/`cupy` only when using GPU resampling. If CUDA is present and you see cuCIM/cupy import errors, recreate the venv with a matching `cupy-cudaXX` wheel; otherwise keep CPU resampling. |
 | cuCIM/cupy import errors | CUDA toolkit / wheel mismatch | Use a matching `cupy-cudaXX` wheel for your CUDA version; recreate the venv if needed |
-| No ROIs applied | RT-Struct failed to load | Inspect `Window ▸ Logs ▸ TotalSegmentator` and ensure a 2D series is open |
+| No volumetric ROIs applied | Active viewer mismatch, unreadable volumetric ROI manifest, or DICOM/NIfTI geometry mismatch | Keep the original 2D series open, inspect `Window ▸ Logs ▸ TotalSegmentator`, and verify the progress log reports generated volumetric brush ROI slices |
+| Only RT-Struct contour ROIs appear | Volumetric import failed and the plugin fell back to RT-Struct conversion | Inspect the progress log for `Volumetric ROI import warning`; check that `pydicom`, `nibabel`, and TotalSegmentator are available in the plugin Python environment |
 | Python env corrupted | Interrupted during virtualenv setup | Delete `~/Library/Application Support/TotalSegmentatorHorosPlugin` and run the plugin again |
 
 ### Optional: enable CUDA GPU-accelerated resampling

@@ -11,4 +11,6 @@
 #import <OsiriXAPI/ViewerController.h>
 #import <OsiriXAPI/DCMPix.h>
 #import <OsiriXAPI/ThreadsManager.h>
+#import <OsiriXAPI/Notifications.h>
 #import "DCMObject.h"
+#import "TSVolumetricROIImporter.h"

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000002AF6000100AAA111 /* TSVolumetricROIImporter.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012AF6000100AAA111 /* TSVolumetricROIImporter.m */; };
 		CEC0F6EB28BF45CD003DD38F /* Horos.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CEC0F6E928BF45CD003DD38F /* Horos.framework */; };
 		CEC0F6EE28BF49EB003DD38F /* Settings.xib in Resources */ = {isa = PBXBuildFile; fileRef = CEC0F6EC28BF49EB003DD38F /* Settings.xib */; };
 		CEC0F6F228BF8DF5003DD38F /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC0F6F128BF8DF5003DD38F /* Plugin.swift */; };
@@ -26,9 +27,12 @@
 		D2D8D2062AF5A9D200AAA111 /* TotalSegmentatorToolbar.png in Resources */ = {isa = PBXBuildFile; fileRef = D2D8D2072AF5A9D200AAA111 /* TotalSegmentatorToolbar.png */; };
 		D2D8D2092AF5B3B400AAA111 /* ClassSelectionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */; };
 		D2D8D20B2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */; };
+		D2D8D20D2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A10000012AF6000100AAA111 /* TSVolumetricROIImporter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TSVolumetricROIImporter.m; sourceTree = "<group>"; };
+		A10000022AF6000100AAA111 /* TSVolumetricROIImporter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TSVolumetricROIImporter.h; sourceTree = "<group>"; };
 		CEC0F6E028BF4354003DD38F /* TotalSegmentatorHorosPlugin.osirixplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TotalSegmentatorHorosPlugin.osirixplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEC0F6E928BF45CD003DD38F /* Horos.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Horos.framework; sourceTree = "<group>"; };
 		CEC0F6EC28BF49EB003DD38F /* Settings.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = Settings.xib; sourceTree = "<group>"; };
@@ -50,6 +54,7 @@
 		D2D8D2072AF5A9D200AAA111 /* TotalSegmentatorToolbar.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = TotalSegmentatorToolbar.png; sourceTree = "<group>"; };
 		D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSelectionWindowController.swift; sourceTree = "<group>"; };
 		D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentationProgressWindowController.swift; sourceTree = "<group>"; };
+		D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RunSegmentationWindowController+TaskPicker.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,9 +83,12 @@
 				34D8FEB9C2F04D0FA81C9F39 /* TotalSegmentatorHorosPlugin+Scripts.swift */,
 				EE021AE8113A4DFBA7F52017 /* TotalSegmentatorHorosPlugin+Export.swift */,
 				935DF9D48BF648B9BFEB2E0A /* TotalSegmentatorHorosPlugin+Import.swift */,
+				A10000012AF6000100AAA111 /* TSVolumetricROIImporter.m */,
+				A10000022AF6000100AAA111 /* TSVolumetricROIImporter.h */,
 				4E72E1931C3448F49CCB9C16 /* TotalSegmentatorHorosPlugin+Audit.swift */,
 				B9AA3040C7F54F17955E2608 /* TotalSegmentatorHorosPlugin+Preferences.swift */,
 				D2D8D2022AF5A00100AAA111 /* RunSegmentationWindowController.swift */,
+				D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */,
 				D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */,
 				D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */,
 				CEC0F6EC28BF49EB003DD38F /* Settings.xib */,
@@ -173,6 +181,7 @@
 				D2D8D2092AF5B3B400AAA111 /* ClassSelectionWindowController.swift in Sources */,
 				D2D8D20B2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift in Sources */,
 				D2D8D2052AF5A00100AAA111 /* RunSegmentationWindowController.swift in Sources */,
+				D2D8D20D2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */,
 				CEC0F6F228BF8DF5003DD38F /* Plugin.swift in Sources */,
 				1C92A5A122B140E9AD3082CE /* TotalSegmentatorPluginTypes.swift in Sources */,
 				51560D95A0BF4BCDA8FECC6E /* TotalSegmentatorHorosPlugin+Utilities.swift in Sources */,
@@ -183,6 +192,7 @@
 				6C6A5CCDA34A41929D82BA54 /* TotalSegmentatorHorosPlugin+Scripts.swift in Sources */,
 				E599F0D4647E410E92F71AF6 /* TotalSegmentatorHorosPlugin+Export.swift in Sources */,
 				0B69ABEE2ECA4E249A51951B /* TotalSegmentatorHorosPlugin+Import.swift in Sources */,
+				A10000002AF6000100AAA111 /* TSVolumetricROIImporter.m in Sources */,
 				33C9A7B7A22E46E2B69181DF /* TotalSegmentatorHorosPlugin+Audit.swift in Sources */,
 				3C35DA86F7204A5D90C51396 /* TotalSegmentatorHorosPlugin+Preferences.swift in Sources */,
 			);

@@ -97,8 +97,17 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         }
         // Force label colors to be readable on light background
         fixLabelColors()
+        replaceLicenseFieldWithEditableField()
+        configureRunFormControls()
+        window?.autorecalculatesKeyViewLoop = true
+        window?.initialFirstResponder = licenseField
         configureTaskDescriptionLabel(taskDescriptionLabel)
         applyConfiguration()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.window?.makeFirstResponder(self.licenseField)
+        }
     }
 
     private func fixLabelColors() {
@@ -108,6 +117,64 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
                 textField.textColor = NSColor.black
             }
         }
+    }
+
+    private func replaceLicenseFieldWithEditableField() {
+        guard let currentField = licenseField,
+              let superview = currentField.superview else { return }
+
+        let replacementField = NSTextField(frame: currentField.frame)
+        replacementField.autoresizingMask = currentField.autoresizingMask
+        replacementField.identifier = currentField.identifier
+        replacementField.font = currentField.font
+        replacementField.placeholderString = currentField.placeholderString
+        replacementField.stringValue = currentField.stringValue
+        replacementField.toolTip = currentField.toolTip
+        replacementField.delegate = self
+        replacementField.nextKeyView = currentField.nextKeyView
+
+        superview.replaceSubview(currentField, with: replacementField)
+        licenseField = replacementField
+    }
+
+    private func configureRunFormControls() {
+        configureEditableField(licenseField)
+        configureEditableField(outputPathField)
+        configureClassSummaryField()
+
+        fastModeCheckbox?.setButtonType(.switch)
+        fastModeCheckbox?.allowsMixedState = false
+        fastModeCheckbox?.isEnabled = true
+
+        for button in [selectClassesButton, launchButton] {
+            button?.isHidden = false
+            button?.isBordered = true
+            button?.bezelStyle = .rounded
+        }
+    }
+
+    private func configureEditableField(_ field: NSTextField?) {
+        field?.isEditable = true
+        field?.isSelectable = true
+        field?.isBordered = true
+        field?.drawsBackground = true
+        field?.usesSingleLineMode = true
+        field?.lineBreakMode = .byTruncatingTail
+        field?.textColor = .controlTextColor
+        field?.backgroundColor = .textBackgroundColor
+        field?.focusRingType = .default
+        field?.isEnabled = true
+    }
+
+    private func configureClassSummaryField() {
+        classSummaryField?.isEditable = false
+        classSummaryField?.isSelectable = false
+        classSummaryField?.isBordered = true
+        classSummaryField?.drawsBackground = true
+        classSummaryField?.usesSingleLineMode = true
+        classSummaryField?.lineBreakMode = .byTruncatingTail
+        classSummaryField?.textColor = .controlTextColor
+        classSummaryField?.backgroundColor = .textBackgroundColor
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
@@ -264,10 +331,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
         updateTaskDescription()
 
-        classSummaryField?.isEditable = false
-        classSummaryField?.isSelectable = false
-        classSummaryField?.usesSingleLineMode = true
-        classSummaryField?.lineBreakMode = .byTruncatingTail
+        configureClassSummaryField()
         updateClassSelectionPresentation()
 
         let license = configuration.preferences.licenseKey ?? ""

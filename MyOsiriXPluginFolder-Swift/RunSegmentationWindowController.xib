@@ -84,6 +84,7 @@
                         <rect key="frame" x="140" y="172" width="200" height="18"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                         <buttonCell key="cell" type="check" title="Fast mode" bezelStyle="regularSquare" imagePosition="left" controlSize="small" state="on" inset="2" id="kLz-Gv-rKK">
+                            <behavior key="behavior" changeContents="YES" lightByContents="YES"/>
                             <font key="font" metaFont="system" size="13"/>
                         </buttonCell>
                     </button>
@@ -96,16 +97,19 @@
                         </textFieldCell>
                     </textField>
                     <textField id="g28-vZ-pow">
-                        <rect key="frame" x="140" y="134" width="198" height="22"/>
+                        <rect key="frame" x="140" y="134" width="176" height="22"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                        <textFieldCell key="cell" controlSize="small" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" placeholderString="All classes" id="Ylm-7L-DkG">
+                        <textFieldCell key="cell" controlSize="small" lineBreakMode="truncatingTail" sendsActionOnEndEditing="YES" alignment="left" placeholderString="All classes" drawsBackground="YES" editable="NO" selectable="NO" usesSingleLineMode="YES" bezeled="YES" id="Ylm-7L-DkG">
                             <font key="font" metaFont="system" size="13"/>
+                            <color key="textColor" name="controlTextColor" catalog="System"/>
+                            <color key="backgroundColor" name="textBackgroundColor" catalog="System"/>
                         </textFieldCell>
                     </textField>
                     <button verticalHuggingPriority="251" id="Vf9-cp-k7Q">
-                        <rect key="frame" x="346" y="129" width="114" height="32"/>
+                        <rect key="frame" x="324" y="129" width="136" height="32"/>
                         <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="push" title="Select Classes…" bezelStyle="rounded" controlSize="small" font="system" id="Pa6-zy-pbt">
+                        <buttonCell key="cell" type="push" title="Select Classes…" bezelStyle="rounded" alignment="center" controlSize="small" borderStyle="border" imageScaling="proportionallyDown" inset="2" font="system" id="Pa6-zy-pbt">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                             <font key="font" metaFont="system" size="13"/>
                         </buttonCell>
                         <connections>
@@ -123,9 +127,9 @@
                     <textField id="S4L-MA-fjX">
                         <rect key="frame" x="140" y="94" width="320" height="22"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                        <textFieldCell key="cell" controlSize="small" sendsActionOnEndEditing="YES" placeholderString="Optional" id="oVe-3W-0ZI">
+                        <textFieldCell key="cell" controlSize="small" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" placeholderString="Optional" drawsBackground="YES" bezeled="YES" id="oVe-3W-0ZI">
                             <font key="font" metaFont="system" size="13"/>
-                            <color key="textColor" name="textColor" catalog="System"/>
+                            <color key="textColor" name="controlTextColor" catalog="System"/>
                             <color key="backgroundColor" name="textBackgroundColor" catalog="System"/>
                         </textFieldCell>
                     </textField>
@@ -138,18 +142,19 @@
                         </textFieldCell>
                     </textField>
                     <textField id="lQ7-4Z-HvA">
-                        <rect key="frame" x="140" y="54" width="240" height="22"/>
+                        <rect key="frame" x="140" y="54" width="228" height="22"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                        <textFieldCell key="cell" controlSize="small" sendsActionOnEndEditing="YES" placeholderString="Choose a folder…" id="0PY-6F-6Zl">
+                        <textFieldCell key="cell" controlSize="small" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" placeholderString="Choose a folder…" drawsBackground="YES" bezeled="YES" id="0PY-6F-6Zl">
                             <font key="font" metaFont="system" size="13"/>
-                            <color key="textColor" name="textColor" catalog="System"/>
+                            <color key="textColor" name="controlTextColor" catalog="System"/>
                             <color key="backgroundColor" name="textBackgroundColor" catalog="System"/>
                         </textFieldCell>
                     </textField>
                     <button verticalHuggingPriority="251" id="ybf-3k-3Ge">
-                        <rect key="frame" x="388" y="49" width="72" height="32"/>
+                        <rect key="frame" x="376" y="49" width="84" height="32"/>
                         <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="push" title="Choose…" bezelStyle="rounded" controlSize="small" font="system" id="Rk7-iO-u1c">
+                        <buttonCell key="cell" type="push" title="Choose…" bezelStyle="rounded" alignment="center" controlSize="small" borderStyle="border" imageScaling="proportionallyDown" inset="2" font="system" id="Rk7-iO-u1c">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                             <font key="font" metaFont="system" size="13"/>
                         </buttonCell>
                         <connections>
@@ -159,7 +164,8 @@
                     <button verticalHuggingPriority="251" id="hWt-xB-9DN">
                         <rect key="frame" x="292" y="10" width="90" height="32"/>
                         <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxY="YES"/>
-                        <buttonCell key="cell" type="push" title="Cancel" bezelStyle="rounded" controlSize="small" font="system" id="4aD-MB-bkW">
+                        <buttonCell key="cell" type="push" title="Cancel" bezelStyle="rounded" alignment="center" controlSize="small" borderStyle="border" imageScaling="proportionallyDown" inset="2" font="system" id="4aD-MB-bkW">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                             <font key="font" metaFont="system" size="13"/>
                         </buttonCell>
                         <connections>
@@ -169,7 +175,8 @@
                     <button verticalHuggingPriority="251" id="tL4-7f-8I6">
                         <rect key="frame" x="388" y="10" width="90" height="32"/>
                         <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxY="YES"/>
-                        <buttonCell key="cell" type="push" title="Launch" bezelStyle="rounded" controlSize="small" keyEquivalent="\r" font="system" id="jNI-jb-9Hh">
+                        <buttonCell key="cell" type="push" title="Launch" bezelStyle="rounded" alignment="center" controlSize="small" borderStyle="border" imageScaling="proportionallyDown" inset="2" keyEquivalent="\r" font="system" id="jNI-jb-9Hh">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                             <font key="font" metaFont="system" size="13"/>
                         </buttonCell>
                         <connections>

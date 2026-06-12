@@ -83,8 +83,8 @@ extension TotalSegmentatorHorosPlugin {
                 self.selectedClassNames = Set(result.preferences.selectedClassNames)
                 self.runConfigurationController = nil
 
-                DispatchQueue.global(qos: .userInitiated).async {
-                    self.runSegmentation(
+                TotalSegmentatorActivityReporter.startActivityThread(named: "TotalSegmentator") { [weak self] in
+                    self?.runSegmentation(
                         exportResult: exportResult,
                         outputDirectory: result.outputDirectory,
                         preferences: result.preferences
@@ -122,17 +122,31 @@ extension TotalSegmentatorHorosPlugin {
         preferences preferencesState: SegmentationPreferences.State
     ) {
         // Run the full pipeline: validate the Python environment, assemble arguments, and reimport the results.
-        defer { cleanupTemporaryDirectory(exportResult.directory) }
+        let progressController = TotalSegmentatorActivityReporter()
+        defer {
+            cleanupTemporaryDirectory(exportResult.directory)
+            progressController.close(after: 1.0)
+        }
 
-        performInitialSetupIfNeeded(displayProgress: true)
+        func failRun(message: String) {
+            progressController.append(message)
+            progressController.markProcessFinished()
+            DispatchQueue.main.async {
+                self.presentProgressLogWindow(with: progressController.capturedLog, finalMessage: message)
+                self.presentAlert(title: "TotalSegmentator", message: message)
+            }
+        }
+
+        progressController.append("Starting TotalSegmentator…")
+        performInitialSetupIfNeeded(progressController: progressController)
+
+        if progressController.isCancellationRequested {
+            failRun(message: "TotalSegmentator run was cancelled.")
+            return
+        }
 
         guard let executableResolution = resolvePythonInterpreter(using: preferencesState) else {
-            DispatchQueue.main.async {
-                self.presentAlert(
-                    title: "TotalSegmentator",
-                    message: "Unable to locate a Python interpreter with TotalSegmentator installed. Please verify the path in the plugin settings."
-                )
-            }
+            failRun(message: "Unable to locate a Python interpreter with TotalSegmentator installed. Please verify the path in the plugin settings.")
             return
         }
 
@@ -146,15 +160,14 @@ extension TotalSegmentatorHorosPlugin {
 
         let outputDetection = Self.detectOutputType(from: additionalTokens)
         let sanitizedAdditionalTokens = Self.removeROISubsetTokens(from: outputDetection.remainingTokens)
-        let effectiveOutputType: SegmentationOutputType = .dicom
-        if outputDetection.type != .dicom {
-            logToConsole("Overriding requested output type '\(outputDetection.type.description)' with 'dicom' to ensure RT Struct overlays are generated.")
+        let effectiveOutputType: SegmentationOutputType = .nifti
+        if outputDetection.type != .nifti {
+            logToConsole("Overriding requested output type '\(outputDetection.type.description)' with 'nifti' so volumetric brush ROIs can be generated from voxel masks.")
         }
 
-        if effectiveOutputType == .dicom {
-            guard ensureRtUtilsAvailable(using: executableResolution) else {
-                return
-            }
+        guard ensureRtUtilsAvailable(using: executableResolution) else {
+            progressController.markProcessFinished()
+            return
         }
 
         var totalSegmentatorArguments: [String] = []
@@ -189,12 +202,7 @@ extension TotalSegmentatorHorosPlugin {
         }
 
         guard let primarySeries = exportResult.series.first else {
-            DispatchQueue.main.async {
-                self.presentAlert(
-                    title: "TotalSegmentator",
-                    message: "No exported DICOM series was found for segmentation."
-                )
-            }
+            failRun(message: "No exported DICOM series was found for segmentation.")
             return
         }
 
@@ -202,9 +210,7 @@ extension TotalSegmentatorHorosPlugin {
         do {
             outputDirectory = try resolveOutputDirectory(using: providedOutputDirectory, exportContext: exportResult)
         } catch {
-            DispatchQueue.main.async {
-                self.presentAlert(title: "TotalSegmentator", message: error.localizedDescription)
-            }
+            failRun(message: error.localizedDescription)
             return
         }
 
@@ -223,9 +229,7 @@ extension TotalSegmentatorHorosPlugin {
                 totalsegmentatorArguments: totalSegmentatorArguments
             )
         } catch {
-            DispatchQueue.main.async {
-                self.presentAlert(title: "TotalSegmentator", message: error.localizedDescription)
-            }
+            failRun(message: error.localizedDescription)
             return
         }
 
@@ -259,7 +263,6 @@ extension TotalSegmentatorHorosPlugin {
         var stdoutBuffer = Data()
         var stderrBuffer = Data()
 
-        let progressController = makeProgressWindow(for: process)
         let seriesCount = exportResult.series.count
         let taskDescriptor = preferencesState.task?.isEmpty == false ? preferencesState.task! : "total"
         progressController.append("Running TotalSegmentator (\(taskDescriptor) task) on \(seriesCount) exported series…")
@@ -279,10 +282,8 @@ extension TotalSegmentatorHorosPlugin {
             guard !data.isEmpty else { return }
             stdoutBuffer.append(data)
             if let message = String(data: data, encoding: .utf8), !message.isEmpty {
-                DispatchQueue.main.async {
-                    progressController?.append(message)
-                    self?.logToConsole(message)
-                }
+                progressController?.append(message)
+                self?.logToConsole(message)
             }
         }
 
@@ -291,10 +292,8 @@ extension TotalSegmentatorHorosPlugin {
             guard !data.isEmpty else { return }
             stderrBuffer.append(data)
             if let message = String(data: data, encoding: .utf8), !message.isEmpty {
-                DispatchQueue.main.async {
-                    progressController?.append(message)
-                    self?.logToConsole(message)
-                }
+                progressController?.append(message)
+                self?.logToConsole(message)
             }
         }
 
@@ -303,19 +302,24 @@ extension TotalSegmentatorHorosPlugin {
         } catch {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            DispatchQueue.main.async {
-                progressController.markProcessFinished()
-                progressController.close()
-                self.presentAlert(
-                    title: "TotalSegmentator",
-                    message: "Failed to start segmentation: \(error.localizedDescription)"
-                )
-                self.progressWindowController = nil
-            }
+            failRun(message: "Failed to start segmentation: \(error.localizedDescription)")
             return
         }
 
+        var didRequestCancellation = false
+        while process.isRunning {
+            if progressController.isCancellationRequested {
+                didRequestCancellation = true
+                progressController.append("Cancellation requested. Terminating TotalSegmentator…")
+                process.terminate()
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
         process.waitUntilExit()
+        if didRequestCancellation {
+            progressController.append("TotalSegmentator process cancelled.")
+        }
         progressController.append("TotalSegmentator finished with status \(process.terminationStatus). Validating outputs…")
 
         stdoutHandle.readabilityHandler = nil
@@ -345,6 +349,14 @@ extension TotalSegmentatorHorosPlugin {
             } catch {
                 postProcessingResult = .failure(error)
             }
+        } else if didRequestCancellation {
+            postProcessingResult = .failure(
+                NSError(
+                    domain: "org.totalsegmentator.plugin",
+                    code: Int(process.terminationStatus),
+                    userInfo: [NSLocalizedDescriptionKey: "TotalSegmentator run was cancelled."]
+                )
+            )
         } else {
             postProcessingResult = .failure(
                 NSError(
@@ -355,37 +367,38 @@ extension TotalSegmentatorHorosPlugin {
             )
         }
 
-        DispatchQueue.main.async {
-            progressController.markProcessFinished()
+        progressController.markProcessFinished()
 
-            switch postProcessingResult {
-            case .success(let importResult):
-                progressController.append("Segmentation finished successfully.")
-                progressController.append("Imported \(importResult.addedFilePaths.count) file(s) into Horos.")
-                if !importResult.rtStructPaths.isEmpty {
-                    progressController.append("Detected \(importResult.rtStructPaths.count) RT Struct file(s).")
-                }
-                progressController.close(after: 0.5)
-                let successMessage: String
-                if importResult.rtStructPaths.isEmpty {
-                    successMessage = "Segmentation finished successfully."
-                } else {
-                    successMessage = "Segmentation finished successfully. Generated ROIs are now available."
-                }
+        switch postProcessingResult {
+        case .success(let importResult):
+            progressController.append("Segmentation finished successfully.")
+            progressController.append("Imported \(importResult.addedFilePaths.count) file(s) into Horos.")
+            if !importResult.rtStructPaths.isEmpty {
+                progressController.append("Detected \(importResult.rtStructPaths.count) RT Struct file(s).")
+            }
+            let successMessage: String
+            if !importResult.rtStructPaths.isEmpty {
+                successMessage = "Segmentation finished successfully. Generated RT Struct ROIs are now available."
+            } else if importResult.volumetricROIManifestPath?.isEmpty == false {
+                successMessage = "Segmentation finished successfully. Generated volumetric ROIs are now available."
+            } else {
+                successMessage = "Segmentation finished successfully."
+            }
+            DispatchQueue.main.async {
                 self.presentAlert(title: "TotalSegmentator", message: successMessage)
-            case .failure(let error):
-                let message: String
-                if (error as NSError).domain == "org.totalsegmentator.plugin" {
-                    message = error.localizedDescription
-                } else {
-                    message = error.localizedDescription
-                }
-                progressController.append(message)
-                progressController.close(after: 0.5)
+            }
+        case .failure(let error):
+            let message: String
+            if (error as NSError).domain == "org.totalsegmentator.plugin" {
+                message = error.localizedDescription
+            } else {
+                message = error.localizedDescription
+            }
+            progressController.append(message)
+            DispatchQueue.main.async {
+                self.presentProgressLogWindow(with: progressController.capturedLog, finalMessage: message)
                 self.presentAlert(title: "TotalSegmentator", message: message)
             }
-
-            self.progressWindowController = nil
         }
     }
 
@@ -409,26 +422,22 @@ extension TotalSegmentatorHorosPlugin {
         return uniqueDirectory
     }
 
-    private func makeProgressWindow(for process: Process) -> SegmentationProgressWindowController {
-        let controller: SegmentationProgressWindowController = {
-            if Thread.isMainThread {
-                return SegmentationProgressWindowController()
-            } else {
-                return DispatchQueue.main.sync { SegmentationProgressWindowController() }
+    private func presentProgressLogWindow(with log: String, finalMessage: String) {
+        let controller = SegmentationProgressWindowController()
+        errorLogWindowController = controller
+        controller.showWindow(nil)
+
+        let trimmedLog = log.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedLog.isEmpty {
+            controller.append(finalMessage)
+        } else {
+            controller.append(trimmedLog)
+            if !trimmedLog.contains(finalMessage) {
+                controller.append(finalMessage)
             }
-        }()
-
-        DispatchQueue.main.async {
-            controller.showWindow(nil)
-            controller.start()
         }
 
-        controller.setCancelHandler { [weak process] in
-            process?.terminate()
-        }
-
-        progressWindowController = controller
-        return controller
+        controller.markProcessFinished()
     }
 
     static func resolveOutputDirectoryIfProvided(_ provided: URL, fileManager: FileManager = .default) throws -> URL {

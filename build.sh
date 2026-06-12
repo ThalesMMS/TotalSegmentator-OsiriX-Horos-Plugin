@@ -11,6 +11,26 @@ SCHEME="TotalSegmentatorHorosPlugin"
 BUILD_DIR="$PROJECT_DIR/build"
 RELEASES_DIR="$SCRIPT_DIR/Releases"
 DATE=$(date +"%Y %m %d")
+TMP_BASE="${TMPDIR:-/tmp/}"
+RESTORE_DIR="$(mktemp -d "${TMP_BASE%/}/totalsegmentator-plugin-build.XXXXXX")"
+PROJECT_BACKUP="$RESTORE_DIR/project.pbxproj"
+BRIDGING_HEADER="TotalSegmentatorHorosPlugin-Bridging-Header.h"
+BRIDGING_HEADER_BACKUP="$RESTORE_DIR/$BRIDGING_HEADER"
+
+cp "$PROJECT/project.pbxproj" "$PROJECT_BACKUP"
+cp "$PROJECT_DIR/$BRIDGING_HEADER" "$BRIDGING_HEADER_BACKUP"
+
+restore_configuration() {
+    if [[ -d "$RESTORE_DIR" ]]; then
+        echo ""
+        echo "==> Restoring original configuration..."
+        cp "$PROJECT_BACKUP" "$PROJECT/project.pbxproj"
+        cp "$BRIDGING_HEADER_BACKUP" "$PROJECT_DIR/$BRIDGING_HEADER"
+        rm -rf "$RESTORE_DIR"
+    fi
+}
+
+trap restore_configuration EXIT
 
 # Parse arguments
 PLATFORM="${1:-both}"
@@ -47,7 +67,7 @@ build_platform() {
     echo "==> Switching to $PLAT configuration..."
     cp "$PROJECT/project_${PLAT_CAPITALIZED}.pbxproj" "$PROJECT/project.pbxproj"
     cp "$PROJECT_DIR/TotalSegmentatorHorosPlugin-Bridging-Header_${PLAT_CAPITALIZED}.h" \
-       "$PROJECT_DIR/TotalSegmentatorHorosPlugin-Bridging-Header.h"
+       "$PROJECT_DIR/$BRIDGING_HEADER"
 
     # Clean previous build
     echo "==> Cleaning previous build..."
@@ -100,12 +120,8 @@ if [[ "$PLATFORM" == "osirix" || "$PLATFORM" == "both" ]]; then
     build_platform "osirix"
 fi
 
-# Restore Horos as default configuration
-echo ""
-echo "==> Restoring Horos as default configuration..."
-cp "$PROJECT/project_Horos.pbxproj" "$PROJECT/project.pbxproj"
-cp "$PROJECT_DIR/TotalSegmentatorHorosPlugin-Bridging-Header_Horos.h" \
-   "$PROJECT_DIR/TotalSegmentatorHorosPlugin-Bridging-Header.h"
+# Restore the configuration that was active before the build.
+restore_configuration
 
 echo ""
 echo "========================================"

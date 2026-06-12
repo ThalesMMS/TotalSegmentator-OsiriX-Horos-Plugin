@@ -14,6 +14,9 @@ import sys
 import time
 import shutil
 import zipfile
+import colorsys
+import hashlib
+import json
 from pathlib import Path
 import subprocess
 import platform
@@ -31,6 +34,29 @@ from nibabel.orientations import (
     apply_orientation,
 )
 
+
+_RTSTRUCT_COLOR_PALETTE = [
+    [230, 25, 75],
+    [60, 180, 75],
+    [255, 225, 25],
+    [67, 99, 216],
+    [245, 130, 49],
+    [145, 30, 180],
+    [70, 240, 240],
+    [240, 50, 230],
+    [188, 246, 12],
+    [250, 190, 212],
+    [0, 128, 128],
+    [220, 190, 255],
+    [154, 99, 36],
+    [255, 250, 200],
+    [128, 0, 0],
+    [170, 255, 195],
+    [128, 128, 0],
+    [255, 216, 177],
+    [0, 0, 117],
+    [128, 128, 128],
+]
 
 
 def command_exists(command):
@@ -163,6 +189,201 @@ def _reorient_to_lps(segmentation_img):
     return np.asarray(reoriented)
 
 
+def _rtstruct_color_for_label(label_index, label_name):
+    if 1 <= label_index <= len(_RTSTRUCT_COLOR_PALETTE):
+        return _RTSTRUCT_COLOR_PALETTE[label_index - 1]
+
+    digest = hashlib.sha256(f"{label_index}:{label_name}".encode("utf-8")).digest()
+    hue = int.from_bytes(digest[:2], "big") / 65535.0
+    saturation = 0.65 + (digest[2] / 255.0) * 0.25
+    value = 0.82 + (digest[3] / 255.0) * 0.15
+    red, green, blue = colorsys.hsv_to_rgb(hue, saturation, value)
+    return [int(round(red * 255)), int(round(green * 255)), int(round(blue * 255))]
+
+
+def _normalize_rtstruct_label_index(label_index, label_name):
+    try:
+        return int(label_index)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"RT Struct label index for '{label_name}' must be an integer. Got {label_index!r}.") from exc
+
+
+def _validate_rtstruct_mask(mask, label_name, expected_slice_count):
+    if not isinstance(mask, np.ndarray):
+        raise ValueError(f"RT Struct ROI mask for '{label_name}' must be a numpy array.")
+    if mask.dtype != np.bool_:
+        raise ValueError(f"RT Struct ROI mask for '{label_name}' must be boolean. Got {mask.dtype}.")
+    if mask.ndim != 3:
+        raise ValueError(f"RT Struct ROI mask for '{label_name}' must be a 3D numpy array. Got {mask.ndim} dimensions.")
+    if mask.shape[2] != expected_slice_count:
+        raise ValueError(
+            f"RT Struct ROI mask for '{label_name}' must have {expected_slice_count} slices. Got {mask.shape[2]}."
+        )
+
+
+def _segmentation_data_as_uint16(segmentation_img):
+    data = np.asanyarray(segmentation_img.dataobj)
+    if data.ndim > 3:
+        data = np.squeeze(data)
+    if data.ndim != 3:
+        raise ValueError("The segmentation image must be a 3D volume.")
+    return np.rint(data).astype(np.uint16)
+
+
+def _sanitize_path_component(value):
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
+    text = str(value) if value is not None else ""
+    cleaned = "".join(ch if ch in allowed else "_" for ch in text).strip("._")
+    return cleaned or "roi"
+
+
+def _vector_from_plane(plane, key):
+    vector = np.array(plane[key], dtype=np.float64)
+    if vector.size != 3:
+        raise ValueError(f"Viewer geometry field '{key}' must contain 3 values.")
+    return vector
+
+
+def _sample_plane_labels(data, inverse_affine, plane):
+    rows = int(plane["rows"])
+    columns = int(plane["columns"])
+    if rows <= 0 or columns <= 0:
+        raise ValueError("Viewer geometry rows and columns must be positive.")
+
+    row_spacing = float(plane.get("row_spacing", 1.0))
+    column_spacing = float(plane.get("column_spacing", 1.0))
+    image_position = _vector_from_plane(plane, "image_position")
+    row_cosine = _vector_from_plane(plane, "row_cosine")
+    column_cosine = _vector_from_plane(plane, "column_cosine")
+
+    row_indices = np.arange(rows, dtype=np.float64)
+    column_indices = np.arange(columns, dtype=np.float64)
+    column_grid, row_grid = np.meshgrid(column_indices, row_indices)
+
+    row_offsets = row_grid * row_spacing
+    column_offsets = column_grid * column_spacing
+    lps_x = image_position[0] + row_cosine[0] * column_offsets + column_cosine[0] * row_offsets
+    lps_y = image_position[1] + row_cosine[1] * column_offsets + column_cosine[1] * row_offsets
+    lps_z = image_position[2] + row_cosine[2] * column_offsets + column_cosine[2] * row_offsets
+
+    ras_x = -lps_x
+    ras_y = -lps_y
+    ras_z = lps_z
+
+    voxel_i = inverse_affine[0, 0] * ras_x + inverse_affine[0, 1] * ras_y + inverse_affine[0, 2] * ras_z + inverse_affine[0, 3]
+    voxel_j = inverse_affine[1, 0] * ras_x + inverse_affine[1, 1] * ras_y + inverse_affine[1, 2] * ras_z + inverse_affine[1, 3]
+    voxel_k = inverse_affine[2, 0] * ras_x + inverse_affine[2, 1] * ras_y + inverse_affine[2, 2] * ras_z + inverse_affine[2, 3]
+
+    index_i = np.rint(voxel_i).astype(np.int64)
+    index_j = np.rint(voxel_j).astype(np.int64)
+    index_k = np.rint(voxel_k).astype(np.int64)
+
+    valid = (
+        (index_i >= 0) & (index_i < data.shape[0]) &
+        (index_j >= 0) & (index_j < data.shape[1]) &
+        (index_k >= 0) & (index_k < data.shape[2])
+    )
+
+    sampled = np.zeros((rows, columns), dtype=np.uint16)
+    sampled[valid] = data[index_i[valid], index_j[valid], index_k[valid]]
+    return sampled
+
+
+def load_volumetric_roi_manifest(manifest_path):
+    with open(manifest_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def generate_projected_volumetric_roi_manifest(
+    segmentation_img,
+    mapping,
+    planes,
+    output_dir,
+    source_segmentation_path=None,
+    reference_dicom_dir=None,
+):
+    """Project a segmentation volume onto viewer planes and write a brush ROI manifest."""
+
+    if not isinstance(segmentation_img, nib.Nifti1Image):
+        raise TypeError("segmentation_img must be a nibabel.Nifti1Image instance")
+    if not planes:
+        raise ValueError("At least one viewer geometry plane is required.")
+
+    data = _segmentation_data_as_uint16(segmentation_img)
+    inverse_affine = np.linalg.inv(segmentation_img.affine)
+    roi_root = Path(output_dir)
+    roi_root.mkdir(parents=True, exist_ok=True)
+
+    label_records = {}
+    for raw_label_index in sorted(mapping.keys(), key=lambda value: int(value)):
+        label_index = int(raw_label_index)
+        label_name = str(mapping[raw_label_index])
+        label_records[label_index] = {
+            "index": label_index,
+            "name": label_name,
+            "safe_name": _sanitize_path_component(label_name),
+            "slices": [],
+            "voxel_count": 0,
+        }
+
+    rows = int(planes[0]["rows"])
+    columns = int(planes[0]["columns"])
+
+    for slice_index, plane in enumerate(planes):
+        sampled = _sample_plane_labels(data, inverse_affine, plane)
+        present_labels = [
+            int(value)
+            for value in np.unique(sampled)
+            if int(value) in label_records and int(value) != 0
+        ]
+
+        for label_index in present_labels:
+            mask = sampled == label_index
+            voxel_count = int(mask.sum())
+            if voxel_count == 0:
+                continue
+
+            record = label_records[label_index]
+            label_dir = roi_root / f"{label_index:03d}_{record['safe_name']}"
+            label_dir.mkdir(parents=True, exist_ok=True)
+            uid = str(plane.get("sop_instance_uid") or plane.get("identifier") or slice_index)
+            uid_safe = _sanitize_path_component(uid)
+            raw_path = label_dir / f"slice_{slice_index:04d}_{uid_safe}.raw"
+            (mask.astype(np.uint8) * 255).tofile(str(raw_path))
+
+            record["voxel_count"] += voxel_count
+            record["slices"].append({
+                "slice_index": int(plane.get("slice_index", slice_index)),
+                "sop_instance_uid": uid,
+                "raw_path": str(raw_path),
+                "rows": int(plane["rows"]),
+                "columns": int(plane["columns"]),
+                "voxel_count": voxel_count,
+            })
+
+    labels = [record for record in label_records.values() if record["slices"]]
+    if not labels:
+        return None
+
+    manifest = {
+        "version": 1,
+        "format": "horos_tplain_roi_manifest",
+        "rows": rows,
+        "columns": columns,
+        "reference_dicom_dir": str(reference_dicom_dir or ""),
+        "source_segmentation_path": str(source_segmentation_path or ""),
+        "label_count": len(labels),
+        "roi_slice_count": int(sum(len(record["slices"]) for record in labels)),
+        "labels": labels,
+    }
+
+    manifest_path = roi_root / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2)
+
+    return str(manifest_path)
+
+
 def save_mask_as_rtstruct(segmentation_img, selected_classes, dcm_reference_file, output_path):
     """Create a volumetric RT Struct from a NIfTI segmentation volume."""
 
@@ -174,20 +395,30 @@ def save_mask_as_rtstruct(segmentation_img, selected_classes, dcm_reference_file
 
     logging.basicConfig(level=logging.WARNING)  # avoid messages from rt_utils
 
-    # Align segmentation to LPS (DICOM) orientation and reorder axes: (Slices, Rows, Columns)
+    # Align segmentation to LPS (DICOM) orientation and reorder axes for rt_utils: (Rows, Columns, Slices)
     lps_volume = _reorient_to_lps(segmentation_img)
-    slices_first = np.transpose(lps_volume, (2, 1, 0))
+    if not isinstance(lps_volume, np.ndarray) or lps_volume.ndim != 3:
+        dimensions = getattr(lps_volume, "ndim", "unknown")
+        raise ValueError(f"RT Struct source volume must be a 3D numpy array. Got {dimensions} dimensions.")
+    rows_columns_slices = np.transpose(lps_volume, (1, 0, 2))
 
     rtstruct = RTStructBuilder.create_new(dicom_series_path=dcm_reference_file)
+    rtstruct_series_data = getattr(rtstruct, "series_data", None)
+    expected_slice_count = len(rtstruct_series_data) if rtstruct_series_data is not None else rows_columns_slices.shape[2]
 
-    for class_idx, class_name in tqdm(selected_classes.items()):
-        mask = slices_first == class_idx
+    for raw_class_idx, class_name in tqdm(selected_classes.items()):
+        class_idx = _normalize_rtstruct_label_index(raw_class_idx, class_name)
+        mask = rows_columns_slices == class_idx
         if not np.any(mask):
             continue
 
+        mask = np.ascontiguousarray(mask, dtype=np.bool_)
+        _validate_rtstruct_mask(mask, class_name, expected_slice_count)
+
         rtstruct.add_roi(
-            mask=np.ascontiguousarray(mask.astype(np.uint8)),
+            mask=mask,
             name=class_name,
+            color=_rtstruct_color_for_label(class_idx, class_name),
         )
 
     rtstruct.save(str(output_path))
