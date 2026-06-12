@@ -7,6 +7,8 @@ import Cocoa
 import CoreData
 import CryptoKit
 
+private let totalSegmentatorROIDisplayOpacity: Float = 0.30
+
 extension TotalSegmentatorHorosPlugin {
     func integrateSegmentationOutput(
         at url: URL,
