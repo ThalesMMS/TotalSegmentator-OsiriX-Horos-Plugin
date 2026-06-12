@@ -2,7 +2,7 @@
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue.svg)
 ![Host app Horos or OsiriX](https://img.shields.io/badge/Host-Horos%20%2F%20OsiriX-6f42c1.svg)
-![Python 3.9+ or 3.13](https://img.shields.io/badge/Python-3.9%2B%20or%203.13-3776AB.svg)
+![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB.svg)
 ![License Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 
 ---
@@ -18,21 +18,25 @@ The repository still ships the upstream `totalsegmentator/` sources because the 
 ## Current Status
 
 - ✅ End-to-end export → segmentation → import flow works for 2D CT/MR series.
-- ✅ Isolated Python environment bootstrapped under `~/Library/Application Support/TotalSegmentatorHorosPlugin`.
+- ✅ Isolated Python environment bootstrapped under `~/Library/Application Support/TotalSegmentatorHorosPlugin/PythonEnvironment`.
+- ✅ Pinned `dcm2niix` bootstrap is available when the configured Python environment does not already provide it.
+- ✅ The run UI includes grouped task selection, device selection (`Auto`, `cpu`, `gpu`, `mps`), fast mode, license entry, class selection, and output-directory selection.
 - ✅ Volumetric brush/tPlain ROIs are generated from NIfTI voxel masks and applied to the active viewer (Horos ≥ 4.0.1 required).
 - ✅ RT-Struct files are still generated/imported for interoperability and fallback.
-- ⚠️ Configuration UI is minimal; advanced class selection is still limited.
+- ✅ Python tests and Swift XCTest sources are present; host-app end-to-end validation is still manual.
 - ⚠️ Horos must be running in English to avoid localization issues in menus.
-- 🚧 Automated tests and formal distribution (installer `.pkg`) are not yet available.
+- 🚧 Formal distribution as an installer `.pkg` is not yet available.
 
 ---
 
 ## Downloadable Builds
 
-Need a prebuilt bundle? The checked-in packaged artifacts currently present in `Releases/` are:
+Need a prebuilt bundle? The latest checked-in debug packages currently present in `Releases/` are:
 
-- [Horos debug package (2026-01-08)](Releases/TotalSegmentatorPlugin%20Horos%202026%2001%2008.osirixplugin.zip)
-- [OsiriX debug package (2026-01-08)](Releases/TotalSegmentatorPlugin%20OsiriX%202026%2001%2008.osirixplugin.zip)
+- [Horos debug package (2026-06-12)](Releases/TotalSegmentatorPlugin%20Horos%202026%2006%2012.osirixplugin.zip)
+- [OsiriX debug package (2026-06-12)](Releases/TotalSegmentatorPlugin%20OsiriX%202026%2006%2012.osirixplugin.zip)
+
+Older 2026-01-08 debug packages are also retained in `Releases/` for comparison.
 
 Unzip the package first, then copy the extracted `.osirixplugin` bundle into the matching plugin folder:
 
@@ -63,8 +67,10 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 - macOS 14 or newer (validated on macOS 15.0.1).
 - Horos 4.0.1 (build 20231016) or compatible OsiriX-based host.
 - Xcode 15/16+ with Swift 5 toolchain.
-- Python 3.9 or 3.13 available (the plugin provisions its own virtualenv).
-- Optional GPU; CPU mode works but is faster with `--fast`.
+- Python 3.9 or newer available (the plugin provisions its own virtualenv when needed).
+- Internet access on first setup so the plugin can install TotalSegmentator dependencies, fetch model weights, and download the pinned `dcm2niix` binary if needed.
+- `rt_utils` in the active Python environment when RT-Struct export is required; the plugin shows the exact `pip install rt_utils` command if it is missing.
+- Optional GPU; CPU mode works, `--fast` reduces workload, and Apple Silicon can use `mps` for inference.
 - Optional **GPU-accelerated resampling** (pre-processing) on Linux/Windows only when **CUDA** is available and the Python environment includes `cucim` + `cupy`.
   - When available, TotalSegmentator will automatically use cuCIM (CUDA) for spacing changes.
   - macOS/Apple Silicon is not supported for this path because CuPy/cuCIM wheels are not available; Apple Silicon **MPS** can run inference on GPU, but resampling falls back to CPU.
@@ -75,8 +81,8 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/ThalesMMS/TotalSegmentator-OsiriX-Horos-Plugin.git
-   cd TotalSegmentator-OsiriX-Horos-Plugin
+   git clone https://github.com/ThalesMMS/TotalSegmentator-OsiriX-Horos-Plugin-dev.git
+   cd TotalSegmentator-OsiriX-Horos-Plugin-dev
    ```
 
 2. **Confirm the Xcode project is visible**
@@ -109,8 +115,10 @@ After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplug
 
 1. Open a study and ensure the active series is 2D (CT or MR).
 2. Choose `Plugins ▸ TotalSegmentator ▸ Run TotalSegmentator`.
-3. Adjust the basic settings (task, device, output) and press **Run**.
-   The task picker groups targets by anatomy and shows helper text for the selected task. Use the **Fast mode** checkbox when you want the TotalSegmentator `--fast` path; the task picker only selects the anatomical task. The plugin internally requests NIfTI output so it can preserve the voxel masks as volumetric ROIs, even when the UI or additional arguments request DICOM output.
+3. Adjust the run settings and press **Run**.
+   The task picker groups targets by anatomy and shows helper text for the selected task. Use **Fast mode** for TotalSegmentator `--fast`, choose `mps` on Apple Silicon when you want Metal-backed inference, and enter a license number when a commercial TotalSegmentator task requires it.
+   Class selection is supported for `total*` tasks through `--roi_subset`; for other tasks the plugin disables or ignores ROI-subset selection.
+   The plugin internally requests NIfTI output so it can preserve voxel masks as volumetric ROIs, even when additional arguments request DICOM output.
 4. Watch the progress window. On success the plugin:
    - imports the generated DICOM/RT-Struct artifacts,
    - creates a per-slice volumetric ROI manifest from the NIfTI masks,
@@ -153,6 +161,22 @@ Notes:
 - Interface files (XIB): `Settings.xib`, `RunSegmentationWindowController.xib`.
 - Python helpers (bridge, converters): generated on the fly in the plugin’s temporary workspace.
 - GPU resampling backend selection (CUDA/cuCIM/CuPy): see [DEV_NOTES.md](DEV_NOTES.md).
+- Managed setup also prepares `pydicom`, `dicom2nifti`, and a verified pinned `dcm2niix` (`v1.0.20250506`) when the host environment lacks a usable binary.
+
+### Testing
+Run these checks inside a development Python environment with `pytest` and the relevant TotalSegmentator scientific dependencies installed (`numpy`, `nibabel`, `pydicom`, etc.).
+
+- Targeted Python/backend checks:
+  ```bash
+  pytest -q tests/test_resampling_backend_selection.py
+  pytest -q tests/test_dicom_io_volumetric_roi_projection.py
+  pytest -q tests/test_plugin_roi_opacity_wiring.py
+  ```
+- Broader upstream TotalSegmentator checks:
+  ```bash
+  ./tests/tests.sh
+  ```
+- Swift XCTest sources live in `MyOsiriXPluginFolder-Swift/Tests/`. The current Xcode project exposes the plugin scheme and target; confirm test-target wiring before relying on `xcodebuild test` for CI.
 
 ### Coding Guidelines
 - Swift 5 with `swift-format` where available.
@@ -164,29 +188,31 @@ Notes:
 ## Repository Layout
 
 ```
-MyOsiriXPluginFolder-Swift/     # Horos plugin sources
+MyOsiriXPluginFolder-Swift/     # Horos/OsiriX plugin sources, XIBs, and Swift tests
+Releases/                       # Checked-in debug plugin bundles and zip packages
 Screenshots/                    # Images used in this README
-totalsegmentator/               # Original TotalSegmentator codebase (reference)
+totalsegmentator/               # Embedded TotalSegmentator backend sources
 resources/                      # Artwork and diagrams inherited from upstream
-tests/                          # TotalSegmentator test suite (not plugin-specific yet)
+tests/                          # Python backend, DICOM/ROI, and upstream TotalSegmentator tests
 ```
 
 ---
 
 ## Related ThalesMMS Repositories
 
-- [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
-- [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
+- [`ThalesMMS/Python-Runner-OsiriX-Horos-Plugin-dev`](https://github.com/ThalesMMS/Python-Runner-OsiriX-Horos-Plugin-dev), a minimal Horos/OsiriX plugin template that runs a bundled Python script.
+- [`ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin-dev`](https://github.com/ThalesMMS/dcmtag2table-OsiriX-Horos-Plugin-dev), a sibling plugin that exports DICOM metadata from Horos or OsiriX to CSV.
 - [`ThalesMMS/DICOM-Decoder-dev`](https://github.com/ThalesMMS/DICOM-Decoder-dev), a Swift DICOM decoder toolkit for viewers, PACS clients, and related imaging tools.
 
 ---
 
 ## Roadmap
 
-- [ ] Advanced preferences panel with class selection via TotalSegmentator API.
+- [x] Run window with grouped task picker, license field, output-directory selection, and `total*` class selection.
+- [ ] Broaden class selection beyond `total*` tasks where TotalSegmentator supports safe ROI subsets.
 - [ ] Support volumetric multi-frame series and MPR viewers.
 - [ ] Automate packaging as `.pkg` with pre-provisioned Python environment.
-- [ ] Add smoke-test harness that triggers the plugin headlessly.
+- [ ] Add a smoke-test harness that triggers the plugin inside Horos/OsiriX.
 
 ---
 
