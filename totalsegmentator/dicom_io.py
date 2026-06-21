@@ -171,7 +171,7 @@ def dcm_to_nifti(input_path, output_path, tmp_dir=None, verbose=False):
         with zipfile.ZipFile(input_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
             input_path = extract_dir
-    
+
     # Convert to nifti
     dicom2nifti.dicom_series_to_nifti(input_path, output_path, reorient_nifti=True)
 
@@ -201,7 +201,47 @@ def _rtstruct_color_for_label(label_index, label_name):
     return [int(round(red * 255)), int(round(green * 255)), int(round(blue * 255))]
 
 
+def _rtstruct_label_name(label_index, label_value):
+    if isinstance(label_value, dict):
+        return str(
+            label_value.get("display_name")
+            or label_value.get("name")
+            or label_value.get("backend_name")
+            or str(label_index)
+        )
+
+    return str(label_value)
+
+
+def _rtstruct_label_metadata(label_index, label_value):
+    label_name = _rtstruct_label_name(label_index, label_value)
+    if isinstance(label_value, dict):
+        color = label_value.get("display_color")
+        if (
+            isinstance(color, list)
+            and len(color) == 3
+            and all(isinstance(value, int) and 0 <= value <= 255 for value in color)
+        ):
+            return label_name, color
+        return label_name, _rtstruct_color_for_label(label_index, label_name)
+
+    return label_name, _rtstruct_color_for_label(label_index, label_name)
+
+
 def _normalize_rtstruct_label_index(label_index, label_name):
+    """
+    Convert a label index to an integer.
+
+    Parameters:
+    	label_index: The value to convert to an integer.
+    	label_name (str): The label name, included in error messages for context.
+
+    Returns:
+    	int: The label index as an integer.
+
+    Raises:
+    	ValueError: If label_index cannot be converted to an integer.
+    """
     try:
         return int(label_index)
     except (TypeError, ValueError) as exc:
@@ -368,6 +408,7 @@ def generate_projected_volumetric_roi_manifest(
     manifest = {
         "version": 1,
         "format": "horos_tplain_roi_manifest",
+        "viewer_geometry_projection": True,
         "rows": rows,
         "columns": columns,
         "reference_dicom_dir": str(reference_dicom_dir or ""),
@@ -385,7 +426,22 @@ def generate_projected_volumetric_roi_manifest(
 
 
 def save_mask_as_rtstruct(segmentation_img, selected_classes, dcm_reference_file, output_path):
-    """Create a volumetric RT Struct from a NIfTI segmentation volume."""
+    """
+    Create an RT Struct file from a segmentation volume with multiple ROI classes.
+
+    Parameters:
+        segmentation_img (nibabel.Nifti1Image): The 3D NIfTI segmentation volume.
+        selected_classes (dict): Mapping of class indices to class values. Values may be
+            dicts containing `display_name`, `name`, `backend_name`, and/or `display_color`,
+            or plain values that will be stringified as the ROI name.
+        dcm_reference_file (str or Path): Path to a DICOM series directory serving as
+            the reference for RT Struct geometry.
+        output_path (str or Path): Path where the RT Struct file will be written.
+
+    Raises:
+        TypeError: If segmentation_img is not a nibabel.Nifti1Image instance.
+        ValueError: If the segmentation volume is not 3D or if ROI mask validation fails.
+    """
 
     if not isinstance(segmentation_img, nib.Nifti1Image):
         raise TypeError("segmentation_img must be a nibabel.Nifti1Image instance")
@@ -406,8 +462,10 @@ def save_mask_as_rtstruct(segmentation_img, selected_classes, dcm_reference_file
     rtstruct_series_data = getattr(rtstruct, "series_data", None)
     expected_slice_count = len(rtstruct_series_data) if rtstruct_series_data is not None else rows_columns_slices.shape[2]
 
-    for raw_class_idx, class_name in tqdm(selected_classes.items()):
-        class_idx = _normalize_rtstruct_label_index(raw_class_idx, class_name)
+    for raw_class_idx, class_value in tqdm(selected_classes.items()):
+        raw_class_name = _rtstruct_label_name(raw_class_idx, class_value)
+        class_idx = _normalize_rtstruct_label_index(raw_class_idx, raw_class_name)
+        class_name, class_color = _rtstruct_label_metadata(class_idx, class_value)
         mask = rows_columns_slices == class_idx
         if not np.any(mask):
             continue
@@ -418,7 +476,7 @@ def save_mask_as_rtstruct(segmentation_img, selected_classes, dcm_reference_file
         rtstruct.add_roi(
             mask=mask,
             name=class_name,
-            color=_rtstruct_color_for_label(class_idx, class_name),
+            color=class_color,
         )
 
     rtstruct.save(str(output_path))

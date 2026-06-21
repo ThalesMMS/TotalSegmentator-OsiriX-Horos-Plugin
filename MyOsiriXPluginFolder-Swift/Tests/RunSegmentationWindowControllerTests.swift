@@ -121,9 +121,9 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
     // MARK: - Result Struct
 
     func test_result_storesPreferences() {
-        let prefs = makePreferencesState(task: "lung", device: "mps")
+        let prefs = makePreferencesState(task: "lung_vessels", device: "mps")
         let result = Result(preferences: prefs, outputDirectory: nil)
-        XCTAssertEqual(result.preferences.task, "lung")
+        XCTAssertEqual(result.preferences.task, "lung_vessels")
         XCTAssertEqual(result.preferences.device, "mps")
     }
 
@@ -190,6 +190,8 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
         let controller = RunSegmentationWindowController()
         XCTAssertNil(controller.onLoadClasses)
         XCTAssertNil(controller.onCheckTaskSupportsClassSelection)
+        XCTAssertNil(controller.onCheckTaskSupportsFastMode)
+        XCTAssertNil(controller.onCheckTaskRequiresLicense)
     }
 
     func test_init_configurationIsNilByDefault() {
@@ -240,12 +242,12 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
 
     func test_onCompletion_withResult_deliversResult() {
         let controller = RunSegmentationWindowController()
-        let expectedPrefs = makePreferencesState(task: "heart")
+        let expectedPrefs = makePreferencesState(task: "heartchambers_highres")
         let expectedResult = Result(preferences: expectedPrefs, outputDirectory: nil)
         var deliveredResult: Result?
         controller.onCompletion = { deliveredResult = $0 }
         controller.onCompletion?(expectedResult)
-        XCTAssertEqual(deliveredResult?.preferences.task, "heart")
+        XCTAssertEqual(deliveredResult?.preferences.task, "heartchambers_highres")
     }
 
     func test_onCompletion_withNil_deliversNil() {
@@ -294,6 +296,111 @@ final class RunSegmentationWindowControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.onCheckTaskSupportsClassSelection?("total"), true)
         XCTAssertEqual(receivedTask, "total")
+    }
+
+    // MARK: - onCheckTaskSupportsFastMode Callback
+
+    func test_onCheckTaskSupportsFastMode_assignedCallbackReturnsTrue() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskSupportsFastMode = { task in task == "total" }
+        XCTAssertEqual(controller.onCheckTaskSupportsFastMode?("total"), true)
+    }
+
+    func test_onCheckTaskSupportsFastMode_assignedCallbackReturnsFalse() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskSupportsFastMode = { task in task == "total" }
+        XCTAssertEqual(controller.onCheckTaskSupportsFastMode?("lung_vessels"), false)
+    }
+
+    func test_onCheckTaskSupportsFastMode_receivesCorrectTaskParameter() {
+        let controller = RunSegmentationWindowController()
+        var receivedTask: String?
+        controller.onCheckTaskSupportsFastMode = { task in
+            receivedTask = task
+            return true
+        }
+        _ = controller.onCheckTaskSupportsFastMode?("heartchambers_highres")
+        XCTAssertEqual(receivedTask, "heartchambers_highres")
+    }
+
+    func test_onCheckTaskSupportsFastMode_receivesNilTask() {
+        let controller = RunSegmentationWindowController()
+        var receivedTask: String? = "initial"
+        controller.onCheckTaskSupportsFastMode = { task in
+            receivedTask = task
+            return false
+        }
+        _ = controller.onCheckTaskSupportsFastMode?(nil)
+        XCTAssertNil(receivedTask)
+    }
+
+    func test_onCheckTaskSupportsFastMode_canBeReplacedWithNewCallback() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskSupportsFastMode = { _ in true }
+        controller.onCheckTaskSupportsFastMode = { _ in false }
+        XCTAssertEqual(controller.onCheckTaskSupportsFastMode?("total"), false)
+    }
+
+    func test_onCheckTaskSupportsFastMode_canBeSetToNil() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskSupportsFastMode = { _ in true }
+        controller.onCheckTaskSupportsFastMode = nil
+        XCTAssertNil(controller.onCheckTaskSupportsFastMode)
+    }
+
+    // MARK: - onCheckTaskRequiresLicense Callback
+
+    func test_onCheckTaskRequiresLicense_assignedCallbackReturnsTrue() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskRequiresLicense = { task in task == "total_mr" }
+        XCTAssertEqual(controller.onCheckTaskRequiresLicense?("total_mr"), true)
+    }
+
+    func test_onCheckTaskRequiresLicense_assignedCallbackReturnsFalse() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskRequiresLicense = { task in task == "total_mr" }
+        XCTAssertEqual(controller.onCheckTaskRequiresLicense?("total"), false)
+    }
+
+    func test_onCheckTaskRequiresLicense_receivesCorrectTaskParameter() {
+        let controller = RunSegmentationWindowController()
+        var receivedTask: String?
+        controller.onCheckTaskRequiresLicense = { task in
+            receivedTask = task
+            return false
+        }
+        _ = controller.onCheckTaskRequiresLicense?("lung_vessels")
+        XCTAssertEqual(receivedTask, "lung_vessels")
+    }
+
+    func test_onCheckTaskRequiresLicense_receivesNilTask() {
+        let controller = RunSegmentationWindowController()
+        var receivedTask: String? = "initial"
+        controller.onCheckTaskRequiresLicense = { task in
+            receivedTask = task
+            return false
+        }
+        _ = controller.onCheckTaskRequiresLicense?(nil)
+        XCTAssertNil(receivedTask)
+    }
+
+    func test_onCheckTaskRequiresLicense_canBeSetToNil() {
+        let controller = RunSegmentationWindowController()
+        controller.onCheckTaskRequiresLicense = { _ in true }
+        controller.onCheckTaskRequiresLicense = nil
+        XCTAssertNil(controller.onCheckTaskRequiresLicense)
+    }
+
+    func test_fastModeAndLicenseCallbacks_independentlyAssignable() {
+        let controller = RunSegmentationWindowController()
+        var fastModeCalled = false
+        var licenseCalled = false
+        controller.onCheckTaskSupportsFastMode = { _ in fastModeCalled = true; return true }
+        controller.onCheckTaskRequiresLicense = { _ in licenseCalled = true; return false }
+        _ = controller.onCheckTaskSupportsFastMode?("total")
+        _ = controller.onCheckTaskRequiresLicense?("total")
+        XCTAssertTrue(fastModeCalled)
+        XCTAssertTrue(licenseCalled)
     }
 
     // MARK: - PreferencesState Values

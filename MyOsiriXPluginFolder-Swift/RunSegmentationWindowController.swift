@@ -56,6 +56,8 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
     var onCompletion: ((Result?) -> Void)?
     var onLoadClasses: ((_ task: String?, _ executable: String?, _ completion: @escaping ([String]) -> Void) -> Void)?
     var onCheckTaskSupportsClassSelection: ((_ task: String?) -> Bool)?
+    var onCheckTaskSupportsFastMode: ((_ task: String?) -> Bool)?
+    var onCheckTaskRequiresLicense: ((_ task: String?) -> Bool)?
 
     var localSelectedClassNames: Set<String> = [] {
         didSet {
@@ -192,12 +194,15 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         updateLaunchButtonState()
     }
 
+    /// Updates the interface when a different task is selected.
     @IBAction private func taskSelectionChanged(_ sender: Any) {
         currentClassLoadRequestID = nil
         updateTaskDescription()
         updateClassSelectionPresentation()
+        updateCapabilityControlStates()
     }
 
+    /// Presents a directory selection dialog for choosing an output path.
     @IBAction private func chooseOutputDirectory(_ sender: Any) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -307,7 +312,9 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
 
     /// Applies the current `configuration` to the window's UI controls and visual state.
     /// 
-    /// Updates the window title and disables standard window buttons, populates task and device pop-up menus (only once per controller lifetime), selects items that match the configured task and device, sets the fast-mode checkbox, fills the class summary and license fields, ensures an output path is present (using the configured output directory or a fallback), and refreshes the launch button state.
+    /// Applies the stored configuration to the window and UI controls.
+    ///
+    /// Configures the window title and button states, populates task and device dropdown menus (once), selects preset values based on the current preferences, and updates all dependent UI states including class selection, license field, output path, and capability-based control enablement.
     private func applyConfiguration() {
         guard let configuration = configuration else { return }
 
@@ -337,6 +344,7 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         let license = configuration.preferences.licenseKey ?? ""
         licenseField?.stringValue = license
         licenseField?.placeholderString = NSLocalizedString("Optional", comment: "Optional field placeholder")
+        updateCapabilityControlStates()
 
         if let outputURL = configuration.outputDirectory {
             outputPathField?.stringValue = outputURL.path
@@ -388,10 +396,35 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         )
     }
 
+    /// Determines whether class selection is supported for a task.
+    /// - Returns: `true` if the task supports class selection, `false` otherwise.
     private func taskSupportsClassSelection(_ task: String?) -> Bool {
         return onCheckTaskSupportsClassSelection?(task) ?? true
     }
 
+    /// Determines whether fast mode is supported for the specified task.
+    /// - Parameters:
+    ///   - task: The task to check.
+    /// - Returns: `true` if fast mode is supported, `false` otherwise.
+    private func taskSupportsFastMode(_ task: String?) -> Bool {
+        return onCheckTaskSupportsFastMode?(task) ?? true
+    }
+
+    /// Determines whether the selected task requires a license key.
+    /// - Parameters:
+    ///   - task: The task to check, or `nil` if no task is selected.
+    /// - Returns: `true` if the task requires a license key, `false` otherwise. Defaults to `true` if no capability check is configured.
+    private func taskRequiresLicense(_ task: String?) -> Bool {
+        return onCheckTaskRequiresLicense?(task) ?? true
+    }
+
+    /// Updates the enabled states of capability-related controls based on the current task selection.
+    private func updateCapabilityControlStates() {
+        updateFastModeControlState()
+        updateLicenseControlState()
+    }
+
+    /// Updates the class selection summary and button state.
     private func updateClassSelectionPresentation() {
         updateClassSelectionSummary()
         updateClassSelectionControlState()
@@ -415,11 +448,33 @@ final class RunSegmentationWindowController: NSWindowController, NSTextFieldDele
         classSummaryField?.toolTip = summary.tooltip
     }
 
+    /// Enables or disables the select classes button based on whether the current task supports class selection.
     private func updateClassSelectionControlState() {
         let task = currentSelectedTask()
         selectClassesButton?.isEnabled = taskSupportsClassSelection(task)
     }
 
+    /// Updates the fast mode checkbox based on whether the current task supports fast mode.
+    ///
+    /// If the task does not support fast mode, the checkbox is disabled and its state is forced to off.
+    private func updateFastModeControlState() {
+        let supportsFastMode = taskSupportsFastMode(currentSelectedTask())
+        fastModeCheckbox?.isEnabled = supportsFastMode
+        if !supportsFastMode {
+            fastModeCheckbox?.state = .off
+        }
+    }
+
+    /// Updates the license input field's enabled state and placeholder text based on whether the selected task requires a license.
+    private func updateLicenseControlState() {
+        let requiresLicense = taskRequiresLicense(currentSelectedTask())
+        licenseField?.isEnabled = requiresLicense
+        licenseField?.placeholderString = requiresLicense
+            ? NSLocalizedString("Required for selected task", comment: "License placeholder for commercial TotalSegmentator tasks")
+            : NSLocalizedString("Not required for selected task", comment: "License placeholder for non-commercial TotalSegmentator tasks")
+    }
+
+    /// Refreshes the class selection UI presentation to reflect the current task and selected classes.
     private func restoreSelectClassesButtonState() {
         updateClassSelectionPresentation()
     }

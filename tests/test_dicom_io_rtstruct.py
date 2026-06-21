@@ -98,6 +98,56 @@ class SaveMaskAsRTStructTests(unittest.TestCase):
         self.assertEqual(color, [230, 25, 75])
         np.testing.assert_array_equal(mask, expected_mask)
 
+    def test_uses_resolved_terminology_name_and_color_when_available(self):
+        lps_volume = np.zeros((2, 3, 4), dtype=np.uint8)
+        lps_volume[1, 2, 3] = 1
+        expected_mask = np.ascontiguousarray(np.transpose(lps_volume == 1, (1, 0, 2)))
+        fake_rt_utils = types.SimpleNamespace(RTStructBuilder=FakeRTStructBuilder)
+        segmentation_img = nib.Nifti1Image(np.zeros((1, 1, 1), dtype=np.uint8), np.eye(4))
+
+        with patch.dict(sys.modules, {"rt_utils": fake_rt_utils}), patch.object(
+            dicom_io, "_reorient_to_lps", return_value=lps_volume
+        ):
+            dicom_io.save_mask_as_rtstruct(
+                segmentation_img,
+                {
+                    1: {
+                        "backend_name": "liver",
+                        "display_name": "Liver",
+                        "display_color": [221, 130, 101],
+                        "canonical_key": "total:5:liver",
+                    }
+                },
+                "/tmp/reference-dicom",
+                "/tmp/output.dcm",
+            )
+
+        self.assertEqual(len(FakeRTStructBuilder.created.rois), 1)
+        mask, name, color = FakeRTStructBuilder.created.rois[0]
+        self.assertEqual(name, "Liver")
+        self.assertEqual(color, [221, 130, 101])
+        np.testing.assert_array_equal(mask, expected_mask)
+
+    def test_invalid_rich_label_index_error_uses_readable_label_name(self):
+        lps_volume = np.zeros((2, 3, 4), dtype=np.uint8)
+        fake_rt_utils = types.SimpleNamespace(RTStructBuilder=FakeRTStructBuilder)
+        segmentation_img = nib.Nifti1Image(np.zeros((1, 1, 1), dtype=np.uint8), np.eye(4))
+
+        with patch.dict(sys.modules, {"rt_utils": fake_rt_utils}), patch.object(
+            dicom_io, "_reorient_to_lps", return_value=lps_volume
+        ):
+            with self.assertRaises(ValueError) as context:
+                dicom_io.save_mask_as_rtstruct(
+                    segmentation_img,
+                    {"not-an-int": {"backend_name": "liver", "display_name": "Liver"}},
+                    "/tmp/reference-dicom",
+                    "/tmp/output.dcm",
+                )
+
+        message = str(context.exception)
+        self.assertIn("RT Struct label index for 'Liver' must be an integer", message)
+        self.assertNotIn("{", message)
+
     def test_raises_clear_error_before_rt_utils_when_mask_is_not_three_dimensional(self):
         lps_volume = np.zeros((2, 3), dtype=np.uint8)
         fake_rt_utils = types.SimpleNamespace(RTStructBuilder=FakeRTStructBuilder)

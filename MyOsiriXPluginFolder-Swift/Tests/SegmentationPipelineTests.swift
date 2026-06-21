@@ -152,17 +152,17 @@ final class DetectOutputTypeTests: XCTestCase {
     }
 
     func test_outputTypeInMixedTokens_removesOnlyOutputTypeFlag() {
-        let tokens = ["--task", "lung", "--output_type", "nifti", "--fast"]
+        let tokens = ["--task", "lung_vessels", "--output_type", "nifti", "--fast"]
         let (type, remaining) = TotalSegmentatorHorosPlugin.detectOutputType(from: tokens)
         XCTAssertEqual(type, .nifti)
-        XCTAssertEqual(remaining, ["--task", "lung", "--fast"])
+        XCTAssertEqual(remaining, ["--task", "lung_vessels", "--fast"])
     }
 
     func test_outputTypeEqualsFormInMixedTokens_removesOnlyOutputTypeToken() {
-        let tokens = ["--task", "lung", "--output_type=nifti_gz", "--fast"]
+        let tokens = ["--task", "lung_vessels", "--output_type=nifti_gz", "--fast"]
         let (type, remaining) = TotalSegmentatorHorosPlugin.detectOutputType(from: tokens)
         XCTAssertEqual(type, .nifti)
-        XCTAssertEqual(remaining, ["--task", "lung", "--fast"])
+        XCTAssertEqual(remaining, ["--task", "lung_vessels", "--fast"])
     }
 
     // Regression: an unknown output_type value should produce .other, not crash
@@ -214,8 +214,8 @@ final class RemoveROISubsetTokensTests: XCTestCase {
     }
 
     func test_roiSubsetEqualsForm_inMixedTokens_removesOnlySubsetToken() {
-        let tokens = ["--task", "lung", "--roi_subset=liver", "--fast"]
-        XCTAssertEqual(TotalSegmentatorHorosPlugin.removeROISubsetTokens(from: tokens), ["--task", "lung", "--fast"])
+        let tokens = ["--task", "lung_vessels", "--roi_subset=liver", "--fast"]
+        XCTAssertEqual(TotalSegmentatorHorosPlugin.removeROISubsetTokens(from: tokens), ["--task", "lung_vessels", "--fast"])
     }
 
     func test_multipleROISubsetFlags_allRemoved() {
@@ -233,6 +233,83 @@ final class RemoveROISubsetTokensTests: XCTestCase {
         let tokens = ["--roi_subset", "liver", "--output_type", "dicom"]
         let result = TotalSegmentatorHorosPlugin.removeROISubsetTokens(from: tokens)
         XCTAssertEqual(result, ["--output_type", "dicom"])
+    }
+}
+
+// MARK: - RT-Struct Export Mode Tests
+
+final class RTStructExportModeTokenTests: XCTestCase {
+
+    func test_noRTStructTokens_preservesDefaultModeAndArguments() {
+        let tokens = ["--device", "cpu"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .disabled
+        )
+
+        XCTAssertEqual(result.mode, .disabled)
+        XCTAssertEqual(result.remainingTokens, tokens)
+    }
+
+    func test_rtstructFlag_enablesOptionalModeAndIsNotForwardedToBackend() {
+        let tokens = ["--rtstruct", "--device", "cpu"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .disabled
+        )
+
+        XCTAssertEqual(result.mode, .optional)
+        XCTAssertEqual(result.remainingTokens, ["--device", "cpu"])
+    }
+
+    func test_noRTStructFlag_disablesModeAndIsNotForwardedToBackend() {
+        let tokens = ["--rtstruct-mode", "optional", "--no-rtstruct", "--fast"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .optional
+        )
+
+        XCTAssertEqual(result.mode, .disabled)
+        XCTAssertEqual(result.remainingTokens, ["--fast"])
+    }
+
+    func test_dashedRTStructTokens_areRecognizedAndNotForwardedToBackend() {
+        let tokens = ["--rt-struct", "--rt-struct-mode=required", "--no-rt-struct", "--device", "cpu"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .disabled
+        )
+
+        XCTAssertEqual(result.mode, .disabled)
+        XCTAssertEqual(result.remainingTokens, ["--device", "cpu"])
+    }
+
+    func test_rtstructModeEqualsForm_setsRequiredMode() {
+        let tokens = ["--rtstruct-mode=required", "--task", "total"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .disabled
+        )
+
+        XCTAssertEqual(result.mode, .required)
+        XCTAssertEqual(result.remainingTokens, ["--task", "total"])
+    }
+
+    func test_invalidRTStructModeValueFallsBackToDefaultAndRemovesInternalFlag() {
+        let tokens = ["--rtstruct-mode", "bogus", "--device", "mps"]
+
+        let result = TotalSegmentatorHorosPlugin.extractRTStructExportMode(
+            from: tokens,
+            defaultMode: .disabled
+        )
+
+        XCTAssertEqual(result.mode, .disabled)
+        XCTAssertEqual(result.remainingTokens, ["--device", "mps"])
     }
 }
 
@@ -289,6 +366,40 @@ final class ResolveOutputDirectoryTests: XCTestCase {
 final class SegmentationPreferencesStateTests: XCTestCase {
 
     typealias State = TotalSegmentatorHorosPlugin.SegmentationPreferences.State
+    private let fastModePreferenceKey = "TotalSegmentatorFastMode"
+
+    private func withPreservedFastModePreference(_ body: () -> Void) {
+        let defaults = UserDefaults.standard
+        let originalValue = defaults.object(forKey: fastModePreferenceKey)
+        defer {
+            if let originalValue {
+                defaults.set(originalValue, forKey: fastModePreferenceKey)
+            } else {
+                defaults.removeObject(forKey: fastModePreferenceKey)
+            }
+        }
+        body()
+    }
+
+    func test_effectivePreferences_defaultsFastModeOnWhenPreferenceMissing() {
+        withPreservedFastModePreference {
+            UserDefaults.standard.removeObject(forKey: fastModePreferenceKey)
+
+            let state = TotalSegmentatorHorosPlugin.SegmentationPreferences().effectivePreferences()
+
+            XCTAssertTrue(state.useFast)
+        }
+    }
+
+    func test_effectivePreferences_respectsSavedFastModeOff() {
+        withPreservedFastModePreference {
+            UserDefaults.standard.set(false, forKey: fastModePreferenceKey)
+
+            let state = TotalSegmentatorHorosPlugin.SegmentationPreferences().effectivePreferences()
+
+            XCTAssertFalse(state.useFast)
+        }
+    }
 
     func test_state_defaultSelectedClassNames_isEmpty() {
         let state = State(

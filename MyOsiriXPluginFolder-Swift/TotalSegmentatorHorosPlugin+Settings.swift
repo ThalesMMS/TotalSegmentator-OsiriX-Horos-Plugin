@@ -12,8 +12,10 @@ extension TotalSegmentatorHorosPlugin {
             return
         }
 
-        configureSettingsInterfaceIfNeeded()
-        populateSettingsUI()
+        let currentPreferences = preferences.effectivePreferences()
+        let runtimeDeviceOptions = settingsDeviceOptions(for: currentPreferences)
+        configureSettingsInterfaceIfNeeded(deviceOptions: runtimeDeviceOptions)
+        populateSettingsUI(deviceOptions: runtimeDeviceOptions)
 
         if window.isVisible {
             window.makeKeyAndOrderFront(nil)
@@ -38,6 +40,7 @@ extension TotalSegmentatorHorosPlugin {
         startSegmentationFlow()
     }
 
+    /// Prompts the user to select a Python interpreter or TotalSegmentator executable.
     @IBAction func browseForExecutable(_ sender: Any) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -56,31 +59,27 @@ extension TotalSegmentatorHorosPlugin {
         }
     }
 
-    func configureSettingsInterfaceIfNeeded() {
-        guard let taskPopupButton = taskPopupButton,
-              taskPopupButton.numberOfItems == 0 else { return }
+    /// Initializes the settings window interface, configuring title, dropdowns, and field properties.
+    func configureSettingsInterfaceIfNeeded(deviceOptions availableDeviceOptions: [(title: String, value: String?)]? = nil) {
+        settingsWindow?.title = "\(Self.settingsMenuTitle) - \(Self.certificationStatusDisplayName)"
 
-        taskPopupButton.removeAllItems()
-        for option in taskOptions {
-            let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
-            item.representedObject = option.value
-            taskPopupButton.menu?.addItem(item)
-        }
-
-        if let menu = taskPopupButton.menu, !menu.items.isEmpty {
-            taskPopupButton.select(menu.items.first)
-        }
-
-        devicePopupButton?.removeAllItems()
-        if let deviceMenu = devicePopupButton?.menu {
-            for option in deviceOptions {
+        if let taskPopupButton = taskPopupButton,
+           taskPopupButton.numberOfItems == 0 {
+            taskPopupButton.removeAllItems()
+            for option in taskOptions {
                 let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
                 item.representedObject = option.value
-                deviceMenu.addItem(item)
+                taskPopupButton.menu?.addItem(item)
             }
-            devicePopupButton?.select(deviceMenu.items.first)
+            taskPopupButton.target = self
+            taskPopupButton.action = #selector(settingsTaskSelectionChanged(_:))
+
+            if let menu = taskPopupButton.menu, !menu.items.isEmpty {
+                taskPopupButton.select(menu.items.first)
+            }
         }
 
+        populateDevicePopupButton(with: availableDeviceOptions ?? deviceOptions)
         additionalArgumentsField?.placeholderString = "--roi_subset liver --statistics"
         classSelectionSummaryField?.isEditable = false
         classSelectionSummaryField?.isSelectable = false
@@ -89,9 +88,11 @@ extension TotalSegmentatorHorosPlugin {
         classSelectionSummaryField?.placeholderString = NSLocalizedString("All classes", comment: "Placeholder for class selection summary")
         classSelectionButton?.title = NSLocalizedString("Select Classes…", comment: "Button title for class selection")
         updateClassSelectionSummary()
+        updateSettingsCapabilityControls()
     }
 
-    func populateSettingsUI() {
+    /// Populates the settings interface with saved preference values.
+    func populateSettingsUI(deviceOptions availableDeviceOptions: [(title: String, value: String?)]? = nil) {
         let current = preferences.effectivePreferences()
         executablePathField?.stringValue = current.executablePath ?? ""
         additionalArgumentsField?.stringValue = current.additionalArguments ?? ""
@@ -106,6 +107,13 @@ extension TotalSegmentatorHorosPlugin {
         } else {
             taskPopupButton?.selectItem(at: 0)
         }
+        updateSettingsCapabilityControls()
+
+        if let availableDeviceOptions,
+           !Self.deviceValueIsSelectable(current.device, in: availableDeviceOptions) {
+            devicePopupButton?.selectItem(at: 0)
+            return
+        }
 
         if let device = current.device,
            let menuItem = devicePopupButton?.menu?.items.first(where: { ($0.representedObject as? String) == device }) {
@@ -115,6 +123,72 @@ extension TotalSegmentatorHorosPlugin {
         }
     }
 
+    /// Clears selected classes and updates capability-dependent controls when the task selection changes.
+    @objc func settingsTaskSelectionChanged(_ sender: Any?) {
+        selectedClassNames.removeAll()
+        updateClassSelectionSummary()
+        updateSettingsCapabilityControls()
+    }
+
+    private func settingsDeviceOptions(for preferencesState: SegmentationPreferences.State) -> [(title: String, value: String?)] {
+        guard let runtimeExecutable = resolvePythonInterpreter(using: preferencesState) else {
+            return deviceOptions
+        }
+
+        let runtimeProbe = probeRuntimeCapabilities(using: runtimeExecutable)
+        for failure in runtimeProbe.failures {
+            logToConsole("Runtime capability probe warning: \(failure)")
+        }
+        return Self.runtimeDeviceOptions(from: runtimeProbe)
+    }
+
+    private func populateDevicePopupButton(with availableDeviceOptions: [(title: String, value: String?)]) {
+        devicePopupButton?.removeAllItems()
+        guard let deviceMenu = devicePopupButton?.menu else { return }
+
+        for option in availableDeviceOptions {
+            let item = NSMenuItem(title: option.title, action: nil, keyEquivalent: "")
+            item.representedObject = option.value
+            deviceMenu.addItem(item)
+        }
+        devicePopupButton?.select(deviceMenu.items.first)
+    }
+
+    /// Gets the identifier of the currently selected task.
+    /// - Returns: The currently selected task identifier, or `nil` if unavailable.
+    private func currentSettingsTask() -> String? {
+        return taskPopupButton?.selectedItem?.representedObject as? String
+    }
+
+    /// Updates which settings controls are enabled based on the capabilities of the currently selected task.
+    /// Clears incompatible selections when their supporting task features are disabled, and updates placeholder text for license-dependent fields.
+    private func updateSettingsCapabilityControls() {
+        let task = currentSettingsTask()
+
+        let supportsClasses = supportsClassSelection(for: task)
+        classSelectionButton?.isEnabled = supportsClasses
+        if !supportsClasses, !selectedClassNames.isEmpty {
+            selectedClassNames.removeAll()
+            updateClassSelectionSummary()
+        }
+
+        let supportsFast = supportsFastMode(for: task)
+        fastModeCheckbox?.isEnabled = supportsFast
+        if !supportsFast {
+            fastModeCheckbox?.state = .off
+        }
+
+        let taskRequiresLicense = requiresLicense(for: task)
+        licenseKeyField?.isEnabled = taskRequiresLicense
+        licenseKeyField?.placeholderString = taskRequiresLicense
+            ? NSLocalizedString("Required for selected task", comment: "License placeholder for commercial TotalSegmentator tasks")
+            : NSLocalizedString("Not required for selected task", comment: "License placeholder for non-commercial TotalSegmentator tasks")
+    }
+
+    /// Persists the current settings from the UI to preferences and handles related updates.
+    ///
+    /// When the executable path changes, clears the cached class options and resets selected classes.
+    /// When the license key changes, initiates license configuration synchronization.
     func persistPreferencesFromUI() {
         var updated = preferences.effectivePreferences()
         let previousExecutable = updated.executablePath
@@ -144,7 +218,7 @@ extension TotalSegmentatorHorosPlugin {
             updated.task = nil
         }
 
-        updated.useFast = fastModeCheckbox?.state == .on
+        updated.useFast = (fastModeCheckbox?.state == .on) && supportsFastMode(for: updated.task)
         updated.hideROIs = hideROIsCheckbox?.state == .on
 
         if let selectedDevice = devicePopupButton?.selectedItem?.representedObject as? String {

@@ -16,6 +16,14 @@
 	<string>1.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>TotalSegmentatorCertificationStatusIdentifier</key>
+	<string>research-non-diagnostic</string>
+	<key>TotalSegmentatorCertificationStatusDisplayName</key>
+	<string>Research/non-diagnostic</string>
+	<key>TotalSegmentatorMedicalImagingCertified</key>
+	<false/>
+	<key>TotalSegmentatorValidationEvidenceVersion</key>
+	<string>none</string>
 	<key>MenuTitles</key>
 	<array>
 		<string>TotalSegmentator</string>

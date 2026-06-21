@@ -14,11 +14,515 @@ struct TaskOption {
     let title: String
     let value: String?
     let description: String
+    let supportsROISubset: Bool
+    let supportsFastMode: Bool
+
+    init(
+        title: String,
+        value: String?,
+        description: String,
+        supportsROISubset: Bool = false,
+        supportsFastMode: Bool = true
+    ) {
+        self.title = title
+        self.value = value
+        self.description = description
+        self.supportsROISubset = supportsROISubset
+        self.supportsFastMode = supportsFastMode
+    }
 }
 
 struct TaskGroup {
     let name: String
     let tasks: [TaskOption]
+}
+
+struct EnvironmentLockManifest: Codable {
+    let schemaVersion: Int
+    let lockIdentifier: String
+    let backend: EnvironmentBackendLock
+    let python: EnvironmentPythonLock
+    let packages: [EnvironmentPackageLock]
+    let dcm2niix: EnvironmentDcm2NiixLock
+    let weights: [EnvironmentWeightsLock]
+    let offlineInstall: EnvironmentOfflineInstall
+
+    var installRequirements: [String] {
+        packages.filter { $0.required }.map { $0.requirement }
+    }
+}
+
+struct EnvironmentBackendLock: Codable {
+    let distributionName: String
+    let importName: String
+    let version: String
+    let sourceTreePolicy: String
+    let upstreamURL: String
+}
+
+struct EnvironmentPythonLock: Codable {
+    let minimumVersion: String
+    let maximumExclusiveVersion: String
+    let supportedArchitectures: [String]
+}
+
+struct EnvironmentPackageLock: Codable {
+    let distributionName: String
+    let importName: String
+    let requirement: String
+    let exactVersion: String?
+    let minimumVersion: String?
+    let maximumExclusiveVersion: String?
+    let required: Bool
+}
+
+struct EnvironmentDcm2NiixLock: Codable {
+    let version: String
+    let archiveName: String
+    let archiveSHA256: String
+    let binarySHA256: String
+}
+
+struct EnvironmentWeightsLock: Codable {
+    let scope: String
+    let provenance: String
+}
+
+struct EnvironmentOfflineInstall: Codable {
+    let requirementFileName: String
+    let instructions: String
+}
+
+enum EnvironmentLifecycleState: String {
+    case uninitialized
+    case checking
+    case installingInPlace
+    case ready
+    case failed
+    case repairing
+    case updatingInPlace
+}
+
+enum EnvironmentReadinessError: LocalizedError {
+    case unableToResolveInterpreter
+    case processLockUnavailable(owner: String?)
+    case missingTotalSegmentator
+    case installFailed(String)
+    case validationFailed([String])
+    case modelWeightsUnavailable
+    case dcm2niixUnavailable
+    case cancelled
+    case interruptedInstallRecovered(String)
+    case unknown(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unableToResolveInterpreter:
+            return "Unable to locate a Python interpreter for the TotalSegmentator environment."
+        case .processLockUnavailable(let owner):
+            if let owner = owner, !owner.isEmpty {
+                return "Another Horos/OsiriX process is already preparing the TotalSegmentator environment: \(owner)"
+            }
+            return "Another Horos/OsiriX process is already preparing the TotalSegmentator environment."
+        case .missingTotalSegmentator:
+            return "The active Python environment does not provide the pinned TotalSegmentator package."
+        case .installFailed(let detail):
+            return "Unable to install the pinned TotalSegmentator environment. \(detail)"
+        case .validationFailed(let errors):
+            return "The active Python environment does not match the pinned lock: \(errors.joined(separator: "; "))"
+        case .modelWeightsUnavailable:
+            return "The Python package environment is valid, but TotalSegmentator model weights could not be prepared."
+        case .dcm2niixUnavailable:
+            return "The Python package environment is valid, but pinned dcm2niix could not be prepared."
+        case .cancelled:
+            return "TotalSegmentator environment setup was cancelled."
+        case .interruptedInstallRecovered(let detail):
+            return "Detected interrupted environment setup and prepared a retry path. \(detail)"
+        case .unknown(let detail):
+            return detail
+        }
+    }
+}
+
+struct EnvironmentReadinessResult {
+    let state: EnvironmentLifecycleState
+    let lockIdentifier: String
+    let manifestIdentifier: String?
+    let pythonPath: String?
+    let dcm2niixPath: String?
+    let packageEnvironmentReady: Bool
+    let modelWeightsReady: Bool
+    let dcm2niixReady: Bool
+    let recoveredInterruptedInstall: Bool
+    let error: EnvironmentReadinessError?
+
+    var isReady: Bool {
+        state == .ready && packageEnvironmentReady && modelWeightsReady && dcm2niixReady && error == nil
+    }
+
+    var failureMessage: String {
+        error?.localizedDescription ?? "The TotalSegmentator environment is not ready."
+    }
+
+    /// Creates an environment readiness result indicating the environment is fully prepared.
+    static func ready(
+        lockIdentifier: String,
+        manifestIdentifier: String?,
+        pythonPath: String?,
+        dcm2niixPath: String?,
+        recoveredInterruptedInstall: Bool
+    ) -> EnvironmentReadinessResult {
+        EnvironmentReadinessResult(
+            state: .ready,
+            lockIdentifier: lockIdentifier,
+            manifestIdentifier: manifestIdentifier,
+            pythonPath: pythonPath,
+            dcm2niixPath: dcm2niixPath,
+            packageEnvironmentReady: true,
+            modelWeightsReady: true,
+            dcm2niixReady: true,
+            recoveredInterruptedInstall: recoveredInterruptedInstall,
+            error: nil
+        )
+    }
+
+    /// Creates an environment readiness result indicating a failure state.
+    /// - Returns: An `EnvironmentReadinessResult` with the specified configuration and error.
+    static func failure(
+        state: EnvironmentLifecycleState = .failed,
+        lockIdentifier: String,
+        manifestIdentifier: String?,
+        pythonPath: String?,
+        packageEnvironmentReady: Bool = false,
+        modelWeightsReady: Bool = false,
+        dcm2niixReady: Bool = false,
+        recoveredInterruptedInstall: Bool = false,
+        error: EnvironmentReadinessError
+    ) -> EnvironmentReadinessResult {
+        EnvironmentReadinessResult(
+            state: state,
+            lockIdentifier: lockIdentifier,
+            manifestIdentifier: manifestIdentifier,
+            pythonPath: pythonPath,
+            dcm2niixPath: nil,
+            packageEnvironmentReady: packageEnvironmentReady,
+            modelWeightsReady: modelWeightsReady,
+            dcm2niixReady: dcm2niixReady,
+            recoveredInterruptedInstall: recoveredInterruptedInstall,
+            error: error
+        )
+    }
+}
+
+final class EnvironmentLifecycleManager {
+    private let condition = NSCondition()
+    private var state: EnvironmentLifecycleState = .uninitialized
+    private var operationInFlight = false
+    private var lastResult: EnvironmentReadinessResult?
+
+    /// Ensures only one environment readiness operation runs at a time across concurrent callers.
+    /// - Parameters:
+    ///   - operation: A closure that performs the environment readiness check.
+    /// - Returns: The result of the environment readiness operation.
+    func run(
+        progressController: SegmentationProgressReporting?,
+        operation: () -> EnvironmentReadinessResult
+    ) -> EnvironmentReadinessResult {
+        condition.lock()
+        if operationInFlight {
+            condition.unlock()
+            progressController?.append("Checking pinned Python environment: waiting for the active setup operation to finish.")
+            condition.lock()
+            while operationInFlight {
+                condition.wait()
+            }
+            let result = lastResult ?? EnvironmentReadinessResult.failure(
+                lockIdentifier: "",
+                manifestIdentifier: nil,
+                pythonPath: nil,
+                error: .unknown("The shared environment setup operation finished without a readiness result.")
+            )
+            condition.unlock()
+            return result
+        }
+
+        operationInFlight = true
+        state = .checking
+        condition.unlock()
+
+        let result = operation()
+
+        condition.lock()
+        state = result.state
+        lastResult = result
+        operationInFlight = false
+        condition.broadcast()
+        condition.unlock()
+
+        return result
+    }
+}
+
+enum TotalSegmentatorCapabilityError: LocalizedError {
+    case missingManifest
+    case invalidTask(String)
+    case unsupportedModality(task: String, modality: String)
+    case unsupportedQuality(task: String, quality: String)
+    case unsupportedOutputMode(task: String, mode: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingManifest:
+            return "The TotalSegmentator task capability manifest could not be loaded."
+        case .invalidTask(let task):
+            return "The selected TotalSegmentator task '\(task)' is not supported by the bundled capability manifest."
+        case .unsupportedModality(let task, let modality):
+            return "The selected TotalSegmentator task '\(task)' does not support \(modality) input according to the bundled capability manifest."
+        case .unsupportedQuality(let task, let quality):
+            return "The selected TotalSegmentator task '\(task)' does not support '\(quality)' quality mode according to the bundled capability manifest."
+        case .unsupportedOutputMode(let task, let mode):
+            return "The selected TotalSegmentator task '\(task)' does not support '\(mode)' output according to the bundled capability manifest."
+        }
+    }
+}
+
+struct TaskCapabilityManifest: Decodable {
+    let schemaVersion: Int
+    let manifestVersion: String
+    let backendSource: String
+    let defaultTask: String
+    let tasks: [TaskCapability]
+
+    static let fallbackUnavailableManifest = TaskCapabilityManifest(
+        schemaVersion: 1,
+        manifestVersion: "unavailable",
+        backendSource: "unavailable",
+        defaultTask: "",
+        tasks: []
+    )
+
+    var tasksByIdentifier: [String: TaskCapability] {
+        Dictionary(uniqueKeysWithValues: tasks.map { ($0.identifier, $0) })
+    }
+
+    /// Retrieves the capability for a specified task, using the default task if none is provided.
+    /// - Parameters:
+    ///   - task: The task identifier. If `nil` or blank, the default task is used.
+    /// - Returns: The capability for the task, or `nil` if no matching capability is found.
+    func capability(for task: String?) -> TaskCapability? {
+        guard let normalized = task?.trimmingCharacters(in: .whitespacesAndNewlines), !normalized.isEmpty else {
+            return tasksByIdentifier[defaultTask]
+        }
+
+        return tasksByIdentifier[normalized]
+    }
+
+    /// Validates that a task and its capabilities match the requested parameters.
+    /// - Parameters:
+    ///   - task: The task identifier to validate.
+    ///   - modality: The modality to verify support for (if provided).
+    ///   - useFast: Whether fast-mode execution is requested.
+    ///   - additionalArguments: CLI arguments that may contain feature flags like `--fast`, `--fastest`, or `--ml`.
+    /// - Returns: The validated `TaskCapability`.
+    /// - Throws: `TotalSegmentatorCapabilityError` if the task is invalid or the requested modality, quality modes, or output modes are unsupported.
+    func validate(task: String?, modality: String?, useFast: Bool, additionalArguments: [String]) throws -> TaskCapability {
+        let normalizedTask = task?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let taskIdentifier = normalizedTask?.isEmpty == false ? normalizedTask! : defaultTask
+
+        guard let capability = tasksByIdentifier[taskIdentifier] else {
+            throw TotalSegmentatorCapabilityError.invalidTask(taskIdentifier)
+        }
+
+        if let modality = modality?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(), !modality.isEmpty {
+            let supported = capability.supportedModalities.map { $0.uppercased() }
+            if !supported.contains(modality) {
+                throw TotalSegmentatorCapabilityError.unsupportedModality(task: taskIdentifier, modality: modality)
+            }
+        }
+
+        if useFast, !capability.qualityModes.contains("fast") {
+            throw TotalSegmentatorCapabilityError.unsupportedQuality(task: taskIdentifier, quality: "fast")
+        }
+
+        if Self.containsFlag("--fast", in: additionalArguments), !capability.qualityModes.contains("fast") {
+            throw TotalSegmentatorCapabilityError.unsupportedQuality(task: taskIdentifier, quality: "fast")
+        }
+
+        if Self.containsFlag("--fastest", in: additionalArguments), !capability.qualityModes.contains("fastest") {
+            throw TotalSegmentatorCapabilityError.unsupportedQuality(task: taskIdentifier, quality: "fastest")
+        }
+
+        if Self.containsFlag("--ml", in: additionalArguments), !capability.supportsMultilabel {
+            throw TotalSegmentatorCapabilityError.unsupportedOutputMode(task: taskIdentifier, mode: "multilabel")
+        }
+
+        return capability
+    }
+
+    /// Determines whether a flag is present in arguments, either as an exact token or as a key in a key-value pair.
+    /// - Parameters:
+    ///   - flag: The flag to search for (e.g., `"--fast"`).
+    ///   - arguments: The argument list to search.
+    /// - Returns: `true` if an argument exactly matches the flag or starts with the flag followed by `=`, `false` otherwise.
+    static func containsFlag(_ flag: String, in arguments: [String]) -> Bool {
+        arguments.contains { token in
+            token == flag || token.hasPrefix(flag + "=")
+        }
+    }
+
+    /// Loads the task capability manifest from bundled resources.
+    /// - Parameters:
+    ///   - bundleCandidates: Bundles to search for the manifest, checked in order.
+    /// - Returns: The decoded task capability manifest.
+    /// - Throws: `TotalSegmentatorCapabilityError.missingManifest` if the manifest is not found in any provided bundle.
+    static func loadBundled(bundleCandidates: [Bundle]) throws -> TaskCapabilityManifest {
+        for bundle in bundleCandidates {
+            guard let url = bundle.url(forResource: "TotalSegmentatorTaskCapabilities", withExtension: "json") else {
+                continue
+            }
+
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(TaskCapabilityManifest.self, from: data)
+        }
+
+        throw TotalSegmentatorCapabilityError.missingManifest
+    }
+}
+
+struct TaskCapability: Decodable {
+    let identifier: String
+    let displayName: String
+    let group: String
+    let description: String
+    let supportedModalities: [String]
+    let supportsRoiSubset: Bool
+    let supportsMultilabel: Bool
+    let qualityModes: [String]
+    let requiresLicense: Bool
+    let experimental: Bool
+    let deprecated: Bool
+}
+
+extension TotalSegmentatorHorosPlugin {
+    private static let taskCapabilityManifestLoadResult: Result<TaskCapabilityManifest, Error> = Result {
+        try TaskCapabilityManifest.loadBundled(
+            bundleCandidates: [
+                Bundle(for: TotalSegmentatorHorosPlugin.self),
+                Bundle.main
+            ]
+        )
+    }
+
+    static let taskCapabilityManifestLoadError: Error? = {
+        switch taskCapabilityManifestLoadResult {
+        case .success:
+            return nil
+        case .failure(let error):
+            return error
+        }
+    }()
+
+    static let taskCapabilityManifest: TaskCapabilityManifest = {
+        switch taskCapabilityManifestLoadResult {
+        case .success(let manifest):
+            return manifest
+        case .failure:
+            return TaskCapabilityManifest.fallbackUnavailableManifest
+        }
+    }()
+
+    static var capabilityManifestIsAvailable: Bool {
+        taskCapabilityManifestLoadError == nil
+    }
+
+    static var capabilityManifestLoadFailureMessage: String {
+        let detail = taskCapabilityManifestLoadError?.localizedDescription ?? "Unknown error."
+        return "TotalSegmentator cannot start because the bundled task capability manifest could not be loaded. \(detail)"
+    }
+
+    /// Organizes task capabilities into groups for UI selection.
+    /// The automatic task option is prepended as the first group, deprecated capabilities are excluded, and feature flags are set based on manifest data.
+    /// - Returns: An array of task groups, each containing task options with capability information.
+    static func taskGroupsFromCapabilityManifest(_ manifest: TaskCapabilityManifest) -> [TaskGroup] {
+        var groups: [TaskGroup] = [
+            TaskGroup(
+                name: NSLocalizedString("Automatic", comment: "Task group header for automatic task selection"),
+                tasks: [
+                    TaskOption(
+                        title: NSLocalizedString("Automatic (default)", comment: "Default task option"),
+                        value: nil,
+                        description: NSLocalizedString("Leaves --task unset so TotalSegmentator uses its default task for the input images. Recommended for most workflows.", comment: "Task description for automatic task selection")
+                    )
+                ]
+            )
+        ]
+
+        var groupedCapabilities: [String: [TaskCapability]] = [:]
+        for capability in manifest.tasks where !capability.deprecated {
+            groupedCapabilities[capability.group, default: []].append(capability)
+        }
+
+        for groupName in manifest.tasks.map(\.group).removingDuplicates() {
+            guard let capabilities = groupedCapabilities[groupName], !capabilities.isEmpty else {
+                continue
+            }
+
+            groups.append(
+                TaskGroup(
+                    name: NSLocalizedString(groupName, comment: "Task group header from TotalSegmentator capability manifest"),
+                    tasks: capabilities.map { capability in
+                        TaskOption(
+                            title: capability.displayName,
+                            value: capability.identifier,
+                            description: capability.description,
+                            supportsROISubset: capability.supportsRoiSubset,
+                            supportsFastMode: capability.qualityModes.contains("fast")
+                        )
+                    }
+                )
+            )
+        }
+
+        return groups
+    }
+
+    /// Validates that the requested segmentation task and configuration are supported.
+    /// - Parameters:
+    ///   - task: The requested task identifier, or `nil` to use the default task.
+    ///   - modality: The input modality, or `nil` to skip modality validation.
+    ///   - useFast: Whether fast quality mode is requested.
+    ///   - additionalArguments: Command-line arguments that may specify quality modes or output options.
+    ///   - manifest: The capability manifest to validate against. Defaults to the bundled manifest.
+    /// - Returns: The capability for the validated task.
+    /// - Throws: `TotalSegmentatorCapabilityError` if the task, modality, or configuration is not supported.
+    static func validateLaunchCapability(
+        task: String?,
+        modality: String?,
+        useFast: Bool,
+        additionalArguments: [String],
+        manifest: TaskCapabilityManifest = TotalSegmentatorHorosPlugin.taskCapabilityManifest
+    ) throws -> TaskCapability {
+        return try manifest.validate(
+            task: task,
+            modality: modality,
+            useFast: useFast,
+            additionalArguments: additionalArguments
+        )
+    }
+}
+
+private extension Array where Element: Hashable {
+    /// Removes duplicate elements from the array.
+    /// - Returns: An array containing only the first occurrence of each element.
+    func removingDuplicates() -> [Element] {
+        var seen: Set<Element> = []
+        var result: [Element] = []
+        for element in self where !seen.contains(element) {
+            seen.insert(element)
+            result.append(element)
+        }
+        return result
+    }
 }
 
 struct ProcessExecutionResult {
@@ -204,6 +708,22 @@ enum SegmentationOutputType: Equatable {
     }
 }
 
+enum RTStructExportMode: String, Codable, CaseIterable, Equatable {
+    case disabled
+    case optional
+    case required
+
+    init(preferenceValue: String?) {
+        guard let normalized = preferenceValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              let mode = RTStructExportMode(rawValue: normalized) else {
+            self = .disabled
+            return
+        }
+
+        self = mode
+    }
+}
+
 struct ExportedSeries {
     let series: DicomSeries
     let modality: String
@@ -216,6 +736,148 @@ struct ExportedSeries {
 struct ExportResult {
     let directory: URL
     let series: [ExportedSeries]
+    var exportManifestURL: URL
+    var jobManifestURL: URL
+    var jobManifest: SegmentationJobManifest
+}
+
+struct SegmentationRunWorkspace {
+    let rootDirectory: URL
+    let inputDirectory: URL
+    let workDirectory: URL
+    let outputDirectory: URL
+    let completionManifestURL: URL
+    let provenanceManifestURL: URL
+    let diagnosticSummaryURL: URL
+    let jobManifestURL: URL
+    let exportManifestURL: URL
+    let publicationBaseDirectory: URL?
+    let publishedOutputDirectory: URL?
+}
+
+struct SegmentationArtifactRecord: Codable {
+    let relativePath: String
+    let kind: String
+    let sha256: String
+    let byteCount: Int64
+}
+
+struct SegmentationRunCompletionManifest: Codable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let completedAt: Date
+    let jobUUID: String
+    let sourceIdentityHash: String
+    let validationVersion: String
+    let outputDirectory: String
+    let artifactCount: Int
+    let artifacts: [SegmentationArtifactRecord]
+}
+
+struct SegmentationRunStageOutcome: Codable {
+    let stage: String
+    let status: String
+    let startedAt: Date?
+    let endedAt: Date?
+    let durationSeconds: Double?
+    let processExitStatus: Int?
+    let warnings: [String]
+    let fallbackUsed: Bool
+    let artifactCount: Int?
+}
+
+struct SegmentationSourceIdentityProvenance: Codable {
+    let sourceIdentityHash: String
+    let studyInstanceUIDHash: String?
+    let seriesInstanceUIDHash: String?
+    let frameOfReferenceUIDHash: String?
+    let orderedSOPInstanceUIDsHash: String
+    let sourceInstanceCount: Int
+}
+
+struct SegmentationRuntimeProvenance: Codable {
+    let pluginVersion: String
+    let pluginBuild: String
+    let pluginCommit: String?
+    let hostApplication: String?
+    let hostVersion: String?
+    let operatingSystemVersion: String
+    let architecture: String
+    let pythonExecutableName: String
+    let pythonExecutablePathHash: String
+    let runtimeCapabilityProbe: RuntimeCapabilityProbe?
+}
+
+struct SegmentationConfigurationProvenance: Codable {
+    let task: String?
+    let capabilityTaskIdentifier: String?
+    let requestedLabels: [String]
+    let effectiveLabels: [String]
+    let requestedDevice: String?
+    let effectiveDevice: String?
+    let requestedQuality: String
+    let effectiveQuality: String
+    let normalizedCLIArguments: [String]
+    let capabilityManifestVersion: String
+    let terminologyMappingVersion: String?
+}
+
+struct SegmentationBackendProvenance: Codable {
+    let environmentLockIdentifier: String
+    let environmentManifestIdentifier: String?
+    let environmentManifestPathHash: String?
+    let bridgeVersion: String
+    let bridgeSchemaVersion: Int
+    let bridgePackageHash: String?
+    let totalSegmentatorVersion: String?
+}
+
+struct SegmentationProvenanceRecord: Codable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let generatedAt: Date
+    let jobUUID: String
+    let runState: String
+    let startedAt: Date?
+    let endedAt: Date?
+    let processExitStatus: Int?
+    let jobManifestSchemaVersion: Int
+    let jobManifestHash: String?
+    let sourceIdentity: SegmentationSourceIdentityProvenance
+    let runtime: SegmentationRuntimeProvenance
+    let runtimeProbe: RuntimeCapabilityProbe?
+    let configuration: SegmentationConfigurationProvenance
+    let backend: SegmentationBackendProvenance
+    let stageOutcomes: [SegmentationRunStageOutcome]
+    let acceptedArtifacts: [SegmentationArtifactRecord]
+    let artifactIntegrityMismatches: [String]
+    let completionManifestPath: String?
+    let completionManifestHash: String?
+    let outputType: String
+    let convertedFromNifti: Bool
+    let cancellationRequested: Bool
+    let warnings: [String]
+}
+
+struct SegmentationDiagnosticSummary: Codable {
+    static let currentSchemaVersion = 1
+
+    let schemaVersion: Int
+    let generatedAt: Date
+    let jobUUID: String
+    let runState: String
+    let sourceDICOMIncluded: Bool
+    let directPatientIdentifiersIncluded: Bool
+    let redactedSourceIdentity: SegmentationSourceIdentityProvenance
+    let runtimeProbe: RuntimeCapabilityProbe?
+    let configuration: SegmentationConfigurationProvenance
+    let backend: SegmentationBackendProvenance
+    let stageOutcomes: [SegmentationRunStageOutcome]
+    let acceptedArtifacts: [SegmentationArtifactRecord]
+    let artifactIntegrityMismatches: [String]
+    let warnings: [String]
 }
 
 struct SegmentationImportResult {
@@ -224,6 +886,9 @@ struct SegmentationImportResult {
     let importedObjectIDs: [NSManagedObjectID]
     let outputType: SegmentationOutputType
     let volumetricROIManifestPath: String?
+    let rtStructExportMode: RTStructExportMode
+    let rtStructStatus: String?
+    let rtStructError: String?
 }
 
 enum NiftiConversionError: LocalizedError {
@@ -355,7 +1020,20 @@ struct SegmentationAuditEntry: Codable {
     let device: String?
     let useFast: Bool
     let additionalArguments: String?
+    let certificationStatusIdentifier: String
+    let certificationStatusDisplayName: String
+    let medicalImagingCertified: Bool
+    let validationEvidenceVersion: String
+    let bridgeVersion: String
+    let bridgeSchemaVersion: Int
+    let bridgePackageHash: String?
     let modelVersion: String?
+    let environmentManifestIdentifier: String?
+    let environmentManifestPath: String?
+    let environmentLockIdentifier: String?
+    let jobUUID: String?
+    let jobManifestPath: String?
+    let jobManifestHash: String?
     let series: [SeriesInfo]
     let convertedFromNifti: Bool
 }
@@ -364,6 +1042,10 @@ enum SegmentationValidationError: LocalizedError {
     case executableNotFound
     case outputDirectoryMissing
     case outputDirectoryEmpty
+    case expectedArtifactMissing(String)
+    case outputArtifactEmpty(String)
+    case runWorkspaceAlreadyExists(String)
+    case applicationSupportUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -373,6 +1055,14 @@ enum SegmentationValidationError: LocalizedError {
             return "No output directory was created by TotalSegmentator."
         case .outputDirectoryEmpty:
             return "The TotalSegmentator output directory is empty. Please check the logs for errors."
+        case .expectedArtifactMissing(let name):
+            return "The TotalSegmentator output is missing the expected artifact: \(name)."
+        case .outputArtifactEmpty(let name):
+            return "The TotalSegmentator output artifact '\(name)' is empty."
+        case .runWorkspaceAlreadyExists(let jobUUID):
+            return "A TotalSegmentator run workspace already exists for job \(jobUUID)."
+        case .applicationSupportUnavailable:
+            return "Unable to resolve the Application Support directory for TotalSegmentator run storage."
         }
     }
 }

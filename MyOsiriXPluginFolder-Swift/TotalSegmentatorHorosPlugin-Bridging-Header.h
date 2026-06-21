@@ -6,6 +6,7 @@
 #import <OsiriXAPI/BrowserController.h>
 #import <OsiriXAPI/DicomStudy.h>
 #import <OsiriXAPI/DicomSeries.h>
+#import <OsiriXAPI/DicomImage.h>
 #import <OsiriXAPI/dicomFile.h>
 #import <OsiriXAPI/DicomDatabase.h>
 #import <OsiriXAPI/ViewerController.h>

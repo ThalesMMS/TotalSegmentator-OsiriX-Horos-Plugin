@@ -12,6 +12,8 @@
 		CEC0F6EE28BF49EB003DD38F /* Settings.xib in Resources */ = {isa = PBXBuildFile; fileRef = CEC0F6EC28BF49EB003DD38F /* Settings.xib */; };
 		CEC0F6F228BF8DF5003DD38F /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC0F6F128BF8DF5003DD38F /* Plugin.swift */; };
 		1C92A5A122B140E9AD3082CE /* TotalSegmentatorPluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD7F7EB85BC4BE18C812E24 /* TotalSegmentatorPluginTypes.swift */; };
+		E8A180012E00001800ABCDEF /* TotalSegmentatorJobManifestTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A180002E00001800ABCDEF /* TotalSegmentatorJobManifestTypes.swift */; };
+		E8A17F012E00001700ABCDEF /* TotalSegmentatorRuntimeCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A17F002E00001700ABCDEF /* TotalSegmentatorRuntimeCapabilities.swift */; };
 		51560D95A0BF4BCDA8FECC6E /* TotalSegmentatorHorosPlugin+Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB2DB2A009814376A6F2D078 /* TotalSegmentatorHorosPlugin+Utilities.swift */; };
 		F810433067F346A8A870481D /* TotalSegmentatorHorosPlugin+Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE023C3E8BF46EAA4AB2CE0 /* TotalSegmentatorHorosPlugin+Settings.swift */; };
 		BF80B133459B4191B81D5DA4 /* TotalSegmentatorHorosPlugin+ClassSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C420ECD0964634AC5B2900 /* TotalSegmentatorHorosPlugin+ClassSelection.swift */; };
@@ -28,6 +30,10 @@
 		D2D8D2092AF5B3B400AAA111 /* ClassSelectionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */; };
 		D2D8D20B2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */; };
 		D2D8D20D2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */; };
+		E8A14C012E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json in Resources */ = {isa = PBXBuildFile; fileRef = E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */; };
+		E8A15D012E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json in Resources */ = {isa = PBXBuildFile; fileRef = E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */; };
+		E8A16E012E00001600ABCDEF /* python_bridge in Resources */ = {isa = PBXBuildFile; fileRef = E8A16E002E00001600ABCDEF /* python_bridge */; };
+		F12400022AF6002400AAA111 /* ReleaseGateContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12400012AF6002400AAA111 /* ReleaseGateContractTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +45,8 @@
 		CEC0F6F028BF8DF4003DD38F /* TotalSegmentatorHorosPlugin-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TotalSegmentatorHorosPlugin-Bridging-Header.h"; sourceTree = "<group>"; };
 		CEC0F6F128BF8DF5003DD38F /* Plugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
 		8BD7F7EB85BC4BE18C812E24 /* TotalSegmentatorPluginTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotalSegmentatorPluginTypes.swift; sourceTree = "<group>"; };
+		E8A180002E00001800ABCDEF /* TotalSegmentatorJobManifestTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotalSegmentatorJobManifestTypes.swift; sourceTree = "<group>"; };
+		E8A17F002E00001700ABCDEF /* TotalSegmentatorRuntimeCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TotalSegmentatorRuntimeCapabilities.swift; sourceTree = "<group>"; };
 		BB2DB2A009814376A6F2D078 /* TotalSegmentatorHorosPlugin+Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TotalSegmentatorHorosPlugin+Utilities.swift"; sourceTree = "<group>"; };
 		9CE023C3E8BF46EAA4AB2CE0 /* TotalSegmentatorHorosPlugin+Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TotalSegmentatorHorosPlugin+Settings.swift"; sourceTree = "<group>"; };
 		75C420ECD0964634AC5B2900 /* TotalSegmentatorHorosPlugin+ClassSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TotalSegmentatorHorosPlugin+ClassSelection.swift"; sourceTree = "<group>"; };
@@ -55,6 +63,11 @@
 		D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSelectionWindowController.swift; sourceTree = "<group>"; };
 		D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentationProgressWindowController.swift; sourceTree = "<group>"; };
 		D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RunSegmentationWindowController+TaskPicker.swift"; sourceTree = "<group>"; };
+		E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = TotalSegmentatorTaskCapabilities.json; sourceTree = "<group>"; };
+		E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = TotalSegmentatorEnvironmentLock.json; sourceTree = "<group>"; };
+		E8A16E002E00001600ABCDEF /* python_bridge */ = {isa = PBXFileReference; lastKnownFileType = folder; path = python_bridge; sourceTree = "<group>"; };
+		F12400012AF6002400AAA111 /* ReleaseGateContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseGateContractTests.swift; sourceTree = "<group>"; };
+		F12400032AF6002400AAA111 /* TotalSegmentatorHorosPluginTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TotalSegmentatorHorosPluginTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +76,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				CEC0F6EB28BF45CD003DD38F /* Horos.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F12400052AF6002400AAA111 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +95,8 @@
 				CEC0F6E928BF45CD003DD38F /* Horos.framework */,
 				CEC0F6F128BF8DF5003DD38F /* Plugin.swift */,
 				8BD7F7EB85BC4BE18C812E24 /* TotalSegmentatorPluginTypes.swift */,
+				E8A180002E00001800ABCDEF /* TotalSegmentatorJobManifestTypes.swift */,
+				E8A17F002E00001700ABCDEF /* TotalSegmentatorRuntimeCapabilities.swift */,
 				BB2DB2A009814376A6F2D078 /* TotalSegmentatorHorosPlugin+Utilities.swift */,
 				9CE023C3E8BF46EAA4AB2CE0 /* TotalSegmentatorHorosPlugin+Settings.swift */,
 				75C420ECD0964634AC5B2900 /* TotalSegmentatorHorosPlugin+ClassSelection.swift */,
@@ -91,9 +113,13 @@
 				D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */,
 				D2D8D2082AF5B3B400AAA111 /* ClassSelectionWindowController.swift */,
 				D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */,
+				E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */,
+				E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */,
+				E8A16E002E00001600ABCDEF /* python_bridge */,
 				CEC0F6EC28BF49EB003DD38F /* Settings.xib */,
 				D2D8D2042AF5A00100AAA111 /* RunSegmentationWindowController.xib */,
 				D2D8D2072AF5A9D200AAA111 /* TotalSegmentatorToolbar.png */,
+				F12400072AF6002400AAA111 /* Tests */,
 				CEC0F6E128BF4354003DD38F /* Products */,
 				CEC0F6F028BF8DF4003DD38F /* TotalSegmentatorHorosPlugin-Bridging-Header.h */,
 			);
@@ -103,8 +129,17 @@
 			isa = PBXGroup;
 			children = (
 				CEC0F6E028BF4354003DD38F /* TotalSegmentatorHorosPlugin.osirixplugin */,
+				F12400032AF6002400AAA111 /* TotalSegmentatorHorosPluginTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F12400072AF6002400AAA111 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				F12400012AF6002400AAA111 /* ReleaseGateContractTests.swift */,
+			);
+			path = Tests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -127,6 +162,23 @@
 			productReference = CEC0F6E028BF4354003DD38F /* TotalSegmentatorHorosPlugin.osirixplugin */;
 			productType = "com.apple.product-type.bundle";
 		};
+		F12400082AF6002400AAA111 /* TotalSegmentatorHorosPluginTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F12400092AF6002400AAA111 /* Build configuration list for PBXNativeTarget "TotalSegmentatorHorosPluginTests" */;
+			buildPhases = (
+				F12400042AF6002400AAA111 /* Sources */,
+				F12400052AF6002400AAA111 /* Frameworks */,
+				F12400062AF6002400AAA111 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TotalSegmentatorHorosPluginTests;
+			productName = TotalSegmentatorHorosPluginTests;
+			productReference = F12400032AF6002400AAA111 /* TotalSegmentatorHorosPluginTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -139,6 +191,9 @@
 					CEC0F6DF28BF4354003DD38F = {
 						CreatedOnToolsVersion = 13.4.1;
 						LastSwiftMigration = 1340;
+					};
+					F12400082AF6002400AAA111 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -156,6 +211,7 @@
 			projectRoot = "";
 			targets = (
 				CEC0F6DF28BF4354003DD38F /* TotalSegmentatorHorosPlugin */,
+				F12400082AF6002400AAA111 /* TotalSegmentatorHorosPluginTests */,
 			);
 		};
 /* End PBXProject section */
@@ -167,7 +223,17 @@
 			files = (
 				D2D8D2032AF5A00100AAA111 /* RunSegmentationWindowController.xib in Resources */,
 				CEC0F6EE28BF49EB003DD38F /* Settings.xib in Resources */,
+				E8A14C012E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json in Resources */,
+				E8A15D012E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json in Resources */,
+				E8A16E012E00001600ABCDEF /* python_bridge in Resources */,
 				D2D8D2062AF5A9D200AAA111 /* TotalSegmentatorToolbar.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F12400062AF6002400AAA111 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,6 +250,8 @@
 				D2D8D20D2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */,
 				CEC0F6F228BF8DF5003DD38F /* Plugin.swift in Sources */,
 				1C92A5A122B140E9AD3082CE /* TotalSegmentatorPluginTypes.swift in Sources */,
+				E8A180012E00001800ABCDEF /* TotalSegmentatorJobManifestTypes.swift in Sources */,
+				E8A17F012E00001700ABCDEF /* TotalSegmentatorRuntimeCapabilities.swift in Sources */,
 				51560D95A0BF4BCDA8FECC6E /* TotalSegmentatorHorosPlugin+Utilities.swift in Sources */,
 				F810433067F346A8A870481D /* TotalSegmentatorHorosPlugin+Settings.swift in Sources */,
 				BF80B133459B4191B81D5DA4 /* TotalSegmentatorHorosPlugin+ClassSelection.swift in Sources */,
@@ -195,6 +263,14 @@
 				A10000002AF6000100AAA111 /* TSVolumetricROIImporter.m in Sources */,
 				33C9A7B7A22E46E2B69181DF /* TotalSegmentatorHorosPlugin+Audit.swift in Sources */,
 				3C35DA86F7204A5D90C51396 /* TotalSegmentatorHorosPlugin+Preferences.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F12400042AF6002400AAA111 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F12400022AF6002400AAA111 /* ReleaseGateContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,6 +439,60 @@
 			};
 			name = Debug;
 		};
+		F124000A2AF6002400AAA111 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P4VGX44GD8;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.totalsegmentator.thalesmms.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "";
+			};
+			name = Debug;
+		};
+		F124000B2AF6002400AAA111 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P4VGX44GD8;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.totalsegmentator.thalesmms.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "";
+			};
+			name = Release;
+		};
 		CEC0F6E628BF4354003DD38F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -423,6 +553,15 @@
 			buildConfigurations = (
 				CEC0F6E528BF4354003DD38F /* Debug */,
 				CEC0F6E628BF4354003DD38F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F12400092AF6002400AAA111 /* Build configuration list for PBXNativeTarget "TotalSegmentatorHorosPluginTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F124000A2AF6002400AAA111 /* Debug */,
+				F124000B2AF6002400AAA111 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -40,11 +40,23 @@ extension TotalSegmentatorHorosPlugin {
         }
     }
 
+    /// Loads the available class options for a given task.
+    /// - Parameters:
+    ///   - task: The task identifier.
+    ///   - executablePath: The path to a Python executable.
+    ///   - completion: Called on the main queue with the loaded class options or an error.
     func loadClassOptions(
         for task: String?,
         executable executablePath: String?,
         completion: @escaping (Swift.Result<[String], Error>) -> Void
     ) {
+        guard supportsClassSelection(for: task) else {
+            DispatchQueue.main.async {
+                completion(.failure(ClassSelectionError.noClassesAvailable))
+            }
+            return
+        }
+
         var effectivePreferences = preferences.effectivePreferences()
 
         if let pathValue = executablePath?.trimmingCharacters(in: .whitespacesAndNewlines), !pathValue.isEmpty {
@@ -221,6 +233,7 @@ else:
         return ClassSelectionSummaryFormatter.components(for: names)
     }
 
+    /// Updates the class selection summary display with the currently selected class names.
     func updateClassSelectionSummary() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self,
@@ -233,11 +246,23 @@ else:
         }
     }
 
+    /// Determines whether class selection is supported for the specified task.
+    /// - Returns: `true` if class selection is supported for the task, `false` otherwise.
     func supportsClassSelection(for task: String?) -> Bool {
-        guard let normalized = task?.trimmingCharacters(in: .whitespacesAndNewlines), !normalized.isEmpty else {
-            return true
-        }
+        return Self.taskCapabilityManifest.capability(for: task)?.supportsRoiSubset ?? false
+    }
 
-        return normalized.hasPrefix("total")
+    /// Determines whether a given task supports fast mode.
+    /// - Returns: `true` if the task supports fast mode, `false` otherwise.
+    func supportsFastMode(for task: String?) -> Bool {
+        return Self.taskCapabilityManifest.capability(for: task)?.qualityModes.contains("fast") ?? false
+    }
+
+    /// Determines whether a task requires a license.
+    /// - Parameters:
+    ///   - task: The task name.
+    /// - Returns: `true` if the task requires a license, `false` otherwise.
+    func requiresLicense(for task: String?) -> Bool {
+        return Self.taskCapabilityManifest.capability(for: task)?.requiresLicense ?? false
     }
 }

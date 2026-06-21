@@ -171,6 +171,110 @@ final class PluginMenuActionStringTests: XCTestCase {
     }
 }
 
+// MARK: - Plugin Certification Properties
+// These properties are new in this PR and encode the plugin's medical-imaging
+// certification status. They are read from the bundle's Info.plist with explicit
+// fallback defaults, so they must be deterministic in tests.
+
+final class PluginCertificationTests: XCTestCase {
+
+    // MARK: Certification status identifier
+
+    func test_certificationStatusIdentifier_isNonEmpty() {
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.certificationStatusIdentifier.isEmpty)
+    }
+
+    func test_certificationStatusIdentifier_defaultsToResearchNonDiagnostic() {
+        // The bundled Info.plist ships with "research-non-diagnostic"; the static
+        // property falls back to this value when the key is absent or empty.
+        XCTAssertEqual(
+            TotalSegmentatorHorosPlugin.certificationStatusIdentifier,
+            "research-non-diagnostic"
+        )
+    }
+
+    func test_certificationStatusIdentifier_doesNotContainWhitespace() {
+        let id = TotalSegmentatorHorosPlugin.certificationStatusIdentifier
+        XCTAssertFalse(
+            id.contains(" ") || id.contains("\t") || id.contains("\n"),
+            "certificationStatusIdentifier must not contain whitespace (it is used as a key)"
+        )
+    }
+
+    // MARK: Certification status display name
+
+    func test_certificationStatusDisplayName_isNonEmpty() {
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.certificationStatusDisplayName.isEmpty)
+    }
+
+    func test_certificationStatusDisplayName_defaultsToResearchNonDiagnostic() {
+        XCTAssertEqual(
+            TotalSegmentatorHorosPlugin.certificationStatusDisplayName,
+            "Research/non-diagnostic"
+        )
+    }
+
+    // MARK: Validation evidence version
+
+    func test_validationEvidenceVersion_isNonEmpty() {
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.validationEvidenceVersion.isEmpty)
+    }
+
+    func test_validationEvidenceVersion_defaultsToNone() {
+        // The bundled Info.plist ships with "none"; production builds with real
+        // evidence would supply a non-"none" version string here.
+        XCTAssertEqual(TotalSegmentatorHorosPlugin.validationEvidenceVersion, "none")
+    }
+
+    // MARK: Medical imaging certification claim
+
+    func test_medicalImagingCertified_isFalseInDefaultBuild() {
+        // The bundled Info.plist sets TotalSegmentatorMedicalImagingCertified = false,
+        // so this property must be false without a valid production certification setup.
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.medicalImagingCertified)
+    }
+
+    func test_medicalImagingCertificationClaim_matchesMedicalImagingCertified() {
+        XCTAssertEqual(
+            TotalSegmentatorHorosPlugin.medicalImagingCertificationClaim,
+            TotalSegmentatorHorosPlugin.medicalImagingCertified
+        )
+    }
+
+    // MARK: Certification notice
+
+    func test_certificationNotice_isNonEmpty() {
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.certificationNotice.isEmpty)
+    }
+
+    func test_certificationNotice_mentionsNonDiagnostic() {
+        XCTAssertTrue(
+            TotalSegmentatorHorosPlugin.certificationNotice
+                .lowercased().contains("non-diagnostic"),
+            "The certification notice must mention 'non-diagnostic' to communicate the usage restriction"
+        )
+    }
+
+    // MARK: Consistency between certification fields
+
+    func test_whenMedicalImagingCertifiedIsFalse_statusIdentifierShouldNotBeProductionValidation() {
+        // When the plugin is not certified, the certification status identifier
+        // must not claim production-validation status.
+        if !TotalSegmentatorHorosPlugin.medicalImagingCertified {
+            XCTAssertNotEqual(
+                TotalSegmentatorHorosPlugin.certificationStatusIdentifier,
+                "production-validation",
+                "Non-certified builds must not carry a 'production-validation' status identifier"
+            )
+        }
+    }
+
+    func test_certificationStatusIdentifierAndDisplayName_areBothNonEmpty() {
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.certificationStatusIdentifier.isEmpty)
+        XCTAssertFalse(TotalSegmentatorHorosPlugin.certificationStatusDisplayName.isEmpty)
+    }
+}
+
 // MARK: - Device and Task Options
 // These option arrays are defined in Plugin.swift and represent the full list of
 // segmentation tasks and compute devices exposed to the user.
@@ -220,12 +324,33 @@ final class PluginOptionListTests: XCTestCase {
         XCTAssertFalse(taskOptions.contains(where: { $0.title == "Total (fast)" }))
     }
 
-    func test_taskOptions_containsLung() {
-        XCTAssertTrue(taskOptions.contains(where: { $0.value == "lung" }))
+    func test_taskOptions_doNotContainAnatomyAliasesAsTaskValues() {
+        let invalidAliases = [
+            "lung",
+            "heart",
+            "kidney",
+            "liver",
+            "pelvis",
+            "prostate",
+            "spleen",
+            "pancreas",
+            "headneck",
+            "femur",
+            "hip",
+            "vertebrae"
+        ]
+
+        for alias in invalidAliases {
+            XCTAssertFalse(taskOptions.contains(where: { $0.value == alias }))
+        }
     }
 
-    func test_taskOptions_containsHeart() {
-        XCTAssertTrue(taskOptions.contains(where: { $0.value == "heart" }))
+    func test_taskOptions_containsBackendLungVesselsTask() {
+        XCTAssertTrue(taskOptions.contains(where: { $0.value == "lung_vessels" }))
+    }
+
+    func test_taskOptions_containsBackendHeartChambersTask() {
+        XCTAssertTrue(taskOptions.contains(where: { $0.value == "heartchambers_highres" }))
     }
 
     func test_taskOptions_nonNilValuesAreUnique() {

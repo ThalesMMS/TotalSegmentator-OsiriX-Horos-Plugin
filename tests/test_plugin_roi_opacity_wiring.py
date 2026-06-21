@@ -11,22 +11,22 @@ VOLUMETRIC_IMPORTER = REPO_ROOT / "MyOsiriXPluginFolder-Swift" / "TSVolumetricRO
 
 
 class PluginROIOpacityWiringTests(unittest.TestCase):
-    def test_rtstruct_created_rois_are_opacity_adjusted_after_reload(self):
+    def test_volumetric_created_rois_are_opacity_adjusted_after_import(self):
         source = IMPORT_SWIFT.read_text()
 
         self.assertIn("totalSegmentatorROIDisplayOpacity", source)
         self.assertIn("applyTotalSegmentatorROIOpacity", source)
 
-        rtstruct_finish_block = re.search(
-            r"if appliedOverlayCount > 0 \{\n(?P<body>.*?)\n\s*\} else if importedVolumetricROICount > 0",
+        volumetric_finish_block = re.search(
+            r"let finishVisualization: \(\) -> Void = \{\n(?P<body>.*?)\n\s*semaphore\.signal\(\)",
             source,
             re.DOTALL,
         )
-        self.assertIsNotNone(rtstruct_finish_block)
-        body = rtstruct_finish_block.group("body")
+        self.assertIsNotNone(volumetric_finish_block)
+        body = volumetric_finish_block.group("body")
         self.assertRegex(
             body,
-            r"(?s)reloadROIs\(in: activeViewer\).*applyTotalSegmentatorROIOpacity\(in: activeViewer",
+            r"(?s)deduplicateTotalSegmentatorROIs\(in: activeViewer.*applyTotalSegmentatorROIOpacity\(in: activeViewer",
         )
 
     def test_volumetric_importer_uses_native_opacity_api(self):

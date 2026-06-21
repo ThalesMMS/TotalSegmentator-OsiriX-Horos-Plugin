@@ -61,6 +61,7 @@ class VolumetricROIProjectionTests(unittest.TestCase):
             manifest = dicom_io.load_volumetric_roi_manifest(manifest_path)
 
             self.assertEqual(manifest["source_segmentation_path"], "/tmp/source_segmentation.nii.gz")
+            self.assertTrue(manifest["viewer_geometry_projection"])
             self.assertEqual(manifest["label_count"], 1)
             slices = manifest["labels"][0]["slices"]
             self.assertEqual([item["sop_instance_uid"] for item in slices], ["axial", "sagittal", "coronal"])

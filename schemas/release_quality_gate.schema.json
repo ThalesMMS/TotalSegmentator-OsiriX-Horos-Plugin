@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "title": "TotalSegmentator Horos/OsiriX Release Quality Gate",
+  "type": "object",
+  "required": [
+    "supported_matrix",
+    "automated_evidence",
+    "geometry_corpus",
+    "host_smoke_evidence",
+    "artifact_retention",
+    "certification_status",
+    "sign_off"
+  ],
+  "properties": {
+    "supported_matrix": {
+      "type": "object",
+      "required": ["plugin_version", "git_commit", "host_apps", "macos", "python", "backend_lock"],
+      "properties": {
+        "plugin_version": {"type": "string", "minLength": 1},
+        "git_commit": {"type": "string", "minLength": 7},
+        "host_apps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "macos": {"type": "string", "minLength": 1},
+        "python": {"type": "string", "minLength": 1},
+        "backend_lock": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "automated_evidence": {
+      "type": "object",
+      "required": ["pytest_junit_xml", "xcode_result_bundle", "test_command", "completed_at"],
+      "properties": {
+        "pytest_junit_xml": {"type": "string", "minLength": 1},
+        "xcode_result_bundle": {"type": "string", "minLength": 1},
+        "test_command": {"type": "string", "minLength": 1},
+        "completed_at": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "geometry_corpus": {
+      "type": "object",
+      "required": ["corpus_version", "corpus_path", "round_trip_fixture", "negative_fixture_ids"],
+      "properties": {
+        "corpus_version": {"type": "string", "minLength": 1},
+        "corpus_path": {"type": "string", "minLength": 1},
+        "round_trip_fixture": {"type": "string", "minLength": 1},
+        "negative_fixture_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "host_smoke_evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["host_app", "host_version", "report_path", "scenario_results", "approver"],
+        "properties": {
+          "host_app": {"type": "string", "minLength": 1},
+          "host_version": {"type": "string", "minLength": 1},
+          "report_path": {"type": "string", "minLength": 1},
+          "scenario_results": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "object",
+              "required": ["status", "evidence"],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["passed", "failed", "not_run", "blocked"]
+                },
+                "evidence": {"type": "string"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "approver": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "artifact_retention": {
+      "type": "object",
+      "required": ["non_phi_artifacts", "retention_path", "excluded_artifacts"],
+      "properties": {
+        "non_phi_artifacts": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "retention_path": {"type": "string", "minLength": 1},
+        "excluded_artifacts": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "certification_status": {
+      "type": "object",
+      "required": ["status_identifier", "medical_imaging_certified", "validation_evidence_version"],
+      "properties": {
+        "status_identifier": {"type": "string", "minLength": 1},
+        "medical_imaging_certified": {"type": "boolean"},
+        "validation_evidence_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "sign_off": {
+      "type": "object",
+      "required": ["release_candidate_tag", "approver", "approval_date"],
+      "properties": {
+        "release_candidate_tag": {"type": "string", "minLength": 1},
+        "approver": {"type": "string", "minLength": 1},
+        "approval_date": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

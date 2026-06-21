@@ -6,6 +6,7 @@
 #import <Horos/BrowserController.h>
 #import <Horos/DicomStudy.h>
 #import <Horos/DicomSeries.h>
+#import <Horos/DicomImage.h>
 #import <Horos/DicomFile.h>
 #import <Horos/DicomDatabase.h>
 #import <Horos/ViewerController.h>

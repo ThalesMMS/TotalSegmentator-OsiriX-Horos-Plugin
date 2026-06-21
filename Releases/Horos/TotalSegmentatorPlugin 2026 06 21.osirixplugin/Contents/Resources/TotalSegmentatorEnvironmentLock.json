@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "lockIdentifier": "totalsegmentator-env-2026-06-21-ts-2.11.0-torch-2.8.0",
+  "backend": {
+    "distributionName": "TotalSegmentator",
+    "importName": "totalsegmentator",
+    "version": "2.11.0",
+    "sourceTreePolicy": "checked-in totalsegmentator/ is reference-only; runtime must execute the pinned installed distribution",
+    "upstreamURL": "https://github.com/wasserth/TotalSegmentator"
+  },
+  "python": {
+    "minimumVersion": "3.11",
+    "maximumExclusiveVersion": "3.13",
+    "supportedArchitectures": ["arm64", "x86_64"]
+  },
+  "packages": [
+    {
+      "distributionName": "TotalSegmentator",
+      "importName": "totalsegmentator",
+      "requirement": "TotalSegmentator==2.11.0",
+      "exactVersion": "2.11.0",
+      "required": true
+    },
+    {
+      "distributionName": "torch",
+      "importName": "torch",
+      "requirement": "torch==2.8.0",
+      "exactVersion": "2.8.0",
+      "required": true
+    },
+    {
+      "distributionName": "torchvision",
+      "importName": "torchvision",
+      "requirement": "torchvision==0.23.0",
+      "exactVersion": "0.23.0",
+      "required": true
+    },
+    {
+      "distributionName": "nnunetv2",
+      "importName": "nnunetv2",
+      "requirement": "nnunetv2==2.6.4",
+      "exactVersion": "2.6.4",
+      "required": true
+    },
+    {
+      "distributionName": "numpy",
+      "importName": "numpy",
+      "requirement": "numpy==2.4.6",
+      "exactVersion": "2.4.6",
+      "required": true
+    },
+    {
+      "distributionName": "nibabel",
+      "importName": "nibabel",
+      "requirement": "nibabel==5.4.2",
+      "exactVersion": "5.4.2",
+      "required": true
+    },
+    {
+      "distributionName": "SimpleITK",
+      "importName": "SimpleITK",
+      "requirement": "SimpleITK==2.5.5",
+      "exactVersion": "2.5.5",
+      "required": true
+    },
+    {
+      "distributionName": "tqdm",
+      "importName": "tqdm",
+      "requirement": "tqdm==4.68.3",
+      "exactVersion": "4.68.3",
+      "required": true
+    },
+    {
+      "distributionName": "xvfbwrapper",
+      "importName": "xvfbwrapper",
+      "requirement": "xvfbwrapper==0.2.23",
+      "exactVersion": "0.2.23",
+      "required": true
+    },
+    {
+      "distributionName": "pydicom",
+      "importName": "pydicom",
+      "requirement": "pydicom==3.0.2",
+      "exactVersion": "3.0.2",
+      "required": true
+    },
+    {
+      "distributionName": "dicom2nifti",
+      "importName": "dicom2nifti",
+      "requirement": "dicom2nifti==2.6.2",
+      "exactVersion": "2.6.2",
+      "required": true
+    },
+    {
+      "distributionName": "rt-utils",
+      "importName": "rt_utils",
+      "requirement": "rt-utils==1.2.7",
+      "exactVersion": "1.2.7",
+      "required": false
+    },
+    {
+      "distributionName": "requests",
+      "importName": "requests",
+      "requirement": "requests==2.34.2",
+      "exactVersion": "2.34.2",
+      "required": true
+    },
+    {
+      "distributionName": "pyarrow",
+      "importName": "pyarrow",
+      "requirement": "pyarrow==17.0.0",
+      "exactVersion": "17.0.0",
+      "required": true
+    }
+  ],
+  "dcm2niix": {
+    "version": "v1.0.20250506",
+    "archiveName": "dcm2niix_mac.zip",
+    "archiveSHA256": "6b66e0e83a3c62f8ad56df26e129234fb7424508dccf03525a1879e0291e52f1",
+    "binarySHA256": "d5ed1c549df2246e53875dfbd54d7ce7519c8a64f0c8f93c55edc7cb8e9d02e2"
+  },
+  "weights": [
+    {
+      "scope": "TotalSegmentator model weights",
+      "provenance": "Managed by totalsegmentator.config/setup_nnunet for TotalSegmentator 2.11.0; environment-manifest.json records the resolved weights directory for each install."
+    }
+  ],
+  "offlineInstall": {
+    "requirementFileName": "TotalSegmentatorEnvironmentLock.json",
+    "instructions": "Install the package requirements in this lock into the selected Python environment, pre-populate TotalSegmentator weights, install the pinned dcm2niix binary, then run the plugin health check to write environment-manifest.json."
+  }
+}
