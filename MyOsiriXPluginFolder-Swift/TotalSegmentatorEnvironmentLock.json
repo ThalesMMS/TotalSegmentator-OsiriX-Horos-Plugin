@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "lockIdentifier": "totalsegmentator-env-2026-06-21-ts-2.11.0-torch-2.8.0",
+  "lockIdentifier": "totalsegmentator-env-2026-09-07-ts-2.18.0-torch-2.8.0",
   "backend": {
     "distributionName": "TotalSegmentator",
     "importName": "totalsegmentator",
-    "version": "2.11.0",
+    "version": "2.18.0",
     "sourceTreePolicy": "checked-in totalsegmentator/ is reference-only; runtime must execute the pinned installed distribution",
     "upstreamURL": "https://github.com/wasserth/TotalSegmentator"
   },
@@ -17,8 +17,8 @@
     {
       "distributionName": "TotalSegmentator",
       "importName": "totalsegmentator",
-      "requirement": "TotalSegmentator==2.11.0",
-      "exactVersion": "2.11.0",
+      "requirement": "TotalSegmentator==2.18.0",
+      "exactVersion": "2.18.0",
       "required": true
     },
     {
@@ -122,7 +122,7 @@
   "weights": [
     {
       "scope": "TotalSegmentator model weights",
-      "provenance": "Managed by totalsegmentator.config/setup_nnunet for TotalSegmentator 2.11.0; environment-manifest.json records the resolved weights directory for each install."
+      "provenance": "Managed by totalsegmentator.config/setup_nnunet for TotalSegmentator 2.18.0; environment-manifest.json records the resolved weights directory for each install."
     }
   ],
   "offlineInstall": {

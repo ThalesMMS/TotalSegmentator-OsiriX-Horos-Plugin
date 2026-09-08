@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "engineVersion": "2.18.0",
+  "releasedAt": "2026-08-12",
+  "checkedAt": "2026-09-07",
+  "upstreamCommit": "184fa4765456492b2ab81a981cc387465906b003",
+  "packageMetadataURL": "https://pypi.org/pypi/TotalSegmentator/2.18.0/json",
+  "wheelSHA256": "6bc8721786925bfd972bc772a530ff651a1254e0737be47d15cb938ac2dd339a",
+  "sourceFiles": {
+    "registry.py": "69db539933d3bb9f25a88a39170c5a1b2b0ed089",
+    "map_to_binary.py": "34820bd066e0e930b81a741f8ccc6c81f588b528",
+    "map_tasks_config.py": "5043db647bada4840ad119721994b2942a389e65",
+    "bin/TotalSegmentator.py": "8c0fd1f1e4489e458e18e348acc7dd751ec54247",
+    "python_api.py": "e25f07d956dd6a54ebc0f6ce5af627b12a7e303a",
+    "nnunet.py": "25e4aae2eaaf33dd21a738968ac8ce463a38b573"
+  },
+  "sourceHashAlgorithm": "git-blob-sha1 (source identity, not wheel-integrity enforcement)",
+  "tasks": ["total", "total_v3", "body", "body_mr", "vertebrae_mr", "lung_vessels", "lung_vessels_LEGACY", "cerebral_bleed", "hip_implant", "coronary_arteries", "coronary_arteries_LEGACY", "pleural_pericard_effusion", "test", "appendicular_bones", "appendicular_bones_mr", "tissue_types", "heartchambers_highres", "face", "vertebrae_body", "vertebrae_pp", "vertebrae_pp_refined", "total_mr", "tissue_types_mr", "tissue_4_types", "face_mr", "head_glands_cavities", "head_muscles", "headneck_bones_vessels", "headneck_muscles", "brain_structures", "liver_vessels", "liver_lesions", "liver_lesions_mr", "oculomotor_muscles", "thigh_shoulder_muscles", "thigh_shoulder_muscles_mr", "lung_nodules", "kidney_cysts", "breasts", "ventricle_parts", "aortic_sinuses", "liver_segments", "liver_segments_mr", "total_highres_test", "craniofacial_structures", "abdominal_muscles", "teeth", "trunk_cavities", "brain_aneurysm", "renal_arteries", "aorta_annulus", "aortic_dissection", "pulmonary_artery_landmarks"],
+  "commercialTasks": ["heartchambers_highres", "appendicular_bones", "appendicular_bones_mr", "tissue_types", "tissue_types_mr", "tissue_4_types", "face", "face_mr", "brain_structures", "thigh_shoulder_muscles", "thigh_shoulder_muscles_mr", "coronary_arteries", "coronary_arteries_LEGACY", "aortic_sinuses", "renal_arteries", "aorta_annulus", "aortic_dissection", "pulmonary_artery_landmarks"],
+  "mrTasksWithoutSuffix": ["brain_aneurysm"],
+  "qualityModes": {
+    "total": ["normal", "fast", "fastest"],
+    "total_mr": ["normal", "fast", "fastest"],
+    "total_v3": ["normal", "fast", "fastest"],
+    "body": ["normal", "fast"],
+    "body_mr": ["normal", "fast"]
+  },
+  "roiSubsetTasks": ["total", "total_mr", "total_v3"],
+  "excludedTasks": {
+    "total_v3": "Uses v3.0.0 weights marked prerelease as of 2026-09-07; not enabled by this stable-engine upgrade.",
+    "lung_vessels_LEGACY": "Deprecated model; use the updated lung_vessels task.",
+    "coronary_arteries_LEGACY": "Deprecated model; use the updated coronary_arteries task.",
+    "test": "Upstream internal test task.",
+    "total_highres_test": "Upstream experimental high-resolution test task.",
+    "renal_arteries": "Upstream map_tasks_config.py limits this model to already-cropped aorta-report input; the plugin exports a complete active series and does not implement that preprocessing.",
+    "aorta_annulus": "Upstream map_tasks_config.py limits this model to already-cropped aorta-report input; the plugin exports a complete active series and does not implement that preprocessing.",
+    "aortic_dissection": "Upstream map_tasks_config.py limits this model to already-cropped aorta-report input; the plugin exports a complete active series and does not implement that preprocessing."
+  }
+}
