@@ -43,6 +43,7 @@ struct EnvironmentLockManifest: Codable {
     let backend: EnvironmentBackendLock
     let python: EnvironmentPythonLock
     let packages: [EnvironmentPackageLock]
+    let resolver: EnvironmentResolverLock
     let dcm2niix: EnvironmentDcm2NiixLock
     let weights: [EnvironmentWeightsLock]
     let offlineInstall: EnvironmentOfflineInstall
@@ -50,6 +51,15 @@ struct EnvironmentLockManifest: Codable {
     var installRequirements: [String] {
         packages.filter { $0.required }.map { $0.requirement }
     }
+}
+
+struct EnvironmentResolverLock: Codable {
+    let requirementsFileName: String
+    let requirementsSHA256: String
+    let distributionCount: Int
+    let generatedWith: String
+    let targetPlatform: String
+    let pythonVersions: [String]
 }
 
 struct EnvironmentBackendLock: Codable {

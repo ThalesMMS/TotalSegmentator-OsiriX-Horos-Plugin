@@ -807,9 +807,14 @@ print("__RESULT__" + json.dumps({
         let lock = Self.environmentLockManifest
         progressController?.append("Installing pinned TotalSegmentator environment \(lock.lockIdentifier)…")
 
+        guard let requirementsURL = lockedRequirementsURL() else {
+            progressController?.append("The bundled hash-locked requirements file is missing or invalid.")
+            return false
+        }
+
         let installResult = runPythonProcess(
             using: resolution,
-            arguments: ["-m", "pip", "install", "--upgrade"] + lock.installRequirements,
+            arguments: ["-m", "pip", "install", "--upgrade", "--require-hashes", "-r", requirementsURL.path],
             progressController: progressController
         )
 
@@ -866,7 +871,8 @@ print("__RESULT__" + json.dumps({
         progressController: SegmentationProgressReporting?
     ) -> [String: Any]? {
         guard let lockData = try? JSONEncoder().encode(Self.environmentLockManifest),
-              let lockJSON = String(data: lockData, encoding: .utf8) else {
+              let lockJSON = String(data: lockData, encoding: .utf8),
+              let requirementsURL = lockedRequirementsURL() else {
             return nil
         }
 
@@ -880,6 +886,11 @@ import platform
 import sys
 
 lock = json.loads(sys.argv[1])
+with open(sys.argv[2], "r", encoding="utf-8") as requirements_file:
+    requirements = requirements_file.read()
+
+def canonicalize_name(name):
+    return "-".join(filter(None, __import__("re").split(r"[-_.]+", name.lower())))
 
 def file_sha256(path):
     if not path:
@@ -926,6 +937,14 @@ for distribution in importlib.metadata.distributions():
         installed_distributions.append({"name": name, "version": version})
 installed_distributions.sort(key=lambda item: item["name"].lower())
 
+resolved_distributions = {}
+for line in requirements.splitlines():
+    if not line or line[0].isspace() or "==" not in line:
+        continue
+    requirement = line[:-1].strip()
+    name, version = requirement.split("==", 1)
+    resolved_distributions[canonicalize_name(name)] = version
+
 weights_dir = None
 try:
     from totalsegmentator.config import get_weights_dir
@@ -945,6 +964,8 @@ manifest = {
     "backend": lock["backend"],
     "packages": packages,
     "installedDistributions": installed_distributions,
+    "resolvedDistributions": resolved_distributions,
+    "resolver": lock["resolver"],
     "dcm2niix": lock["dcm2niix"],
     "weightsDirectory": weights_dir,
     "sourceTreePolicy": lock["backend"]["sourceTreePolicy"]
@@ -955,7 +976,7 @@ print("__RESULT__" + json.dumps(manifest, sort_keys=True))
 
         let result = runPythonProcess(
             using: resolution,
-            arguments: ["-c", script, lockJSON],
+            arguments: ["-c", script, lockJSON, requirementsURL.path],
             progressController: progressController
         )
 
@@ -1027,7 +1048,37 @@ print("__RESULT__" + json.dumps(manifest, sort_keys=True))
             }
         }
 
+        let resolvedDistributions = manifest["resolvedDistributions"] as? [String: String] ?? [:]
+        if resolvedDistributions.count != lock.resolver.distributionCount {
+            errors.append("resolver contains \(resolvedDistributions.count) distributions, expected \(lock.resolver.distributionCount)")
+        }
+
+        let installedRecords = manifest["installedDistributions"] as? [[String: Any]] ?? []
+        var installedDistributions: [String: String] = [:]
+        for record in installedRecords {
+            guard let name = record["name"] as? String, let version = record["version"] as? String else {
+                continue
+            }
+            installedDistributions[normalizedDistributionName(name)] = version
+        }
+        for (name, expectedVersion) in resolvedDistributions.sorted(by: { $0.key < $1.key }) {
+            guard let installedVersion = installedDistributions[name] else {
+                errors.append("missing resolved distribution \(name)")
+                continue
+            }
+            if installedVersion != expectedVersion {
+                errors.append("\(name) resolved \(installedVersion), expected \(expectedVersion)")
+            }
+        }
+
         return errors
+    }
+
+    private func normalizedDistributionName(_ name: String) -> String {
+        name.lowercased()
+            .split(whereSeparator: { $0 == "-" || $0 == "_" || $0 == "." })
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
     }
 
     /// Compares two version strings numerically.
@@ -1253,6 +1304,23 @@ print("__RESULT__" + json.dumps({"path": result}))
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    private func lockedRequirementsURL() -> URL? {
+        let resolver = Self.environmentLockManifest.resolver
+        let fileURL = URL(fileURLWithPath: resolver.requirementsFileName)
+        let resourceName = fileURL.deletingPathExtension().lastPathComponent
+        let resourceExtension = fileURL.pathExtension
+
+        for bundle in [Bundle(for: TotalSegmentatorHorosPlugin.self), Bundle.main] {
+            guard let url = bundle.url(forResource: resourceName, withExtension: resourceExtension),
+                  let digest = sha256(ofFileAt: url),
+                  digest.caseInsensitiveCompare(resolver.requirementsSHA256) == .orderedSame else {
+                continue
+            }
+            return url
+        }
+        return nil
+    }
+
     /// Ensures a verified copy of the pinned dcm2niix binary is available locally.
     /// - Parameters:
     ///   - bootstrapFailure: On failure, populated with the specific bootstrap error.
@@ -1416,7 +1484,8 @@ print("__RESULT__" + json.dumps({"path": result}))
     /// - Parameter resolution: The resolved Python interpreter and environment configuration.
     /// - Returns: A space-separated command string with components quoted to protect spaces.
     private func lockedEnvironmentInstallInstruction(using resolution: ExecutableResolution) -> String {
-        let components = [resolution.executableURL.path] + resolution.leadingArguments + ["-m", "pip", "install", "--upgrade"] + Self.environmentLockManifest.installRequirements
+        let requirementsPath = lockedRequirementsURL()?.path ?? Self.environmentLockManifest.resolver.requirementsFileName
+        let components = [resolution.executableURL.path] + resolution.leadingArguments + ["-m", "pip", "install", "--upgrade", "--require-hashes", "-r", requirementsPath]
         return components.map { component -> String in
             if component.contains(" ") {
                 return "\"\(component)\""
@@ -1442,7 +1511,7 @@ print("__RESULT__" + json.dumps({"path": result}))
 
     /// Displays an alert explaining the environment setup failure and providing recovery instructions.
     func presentEnvironmentSetupFailureInstructions(for result: EnvironmentReadinessResult? = nil) {
-        let requirements = Self.environmentLockManifest.installRequirements.joined(separator: " ")
+        let requirements = Self.environmentLockManifest.resolver.requirementsFileName
         let failure = result?.failureMessage ?? "The active environment is not ready."
         let message = """
 Unable to prepare a Python environment with TotalSegmentator installed.
@@ -1460,7 +1529,7 @@ If environment-setup.lock is reported as held, close the other Horos/OsiriX proc
 
 Then run the plugin again, or install the locked requirements manually with Python \(Self.environmentLockManifest.python.minimumVersion)..<\(Self.environmentLockManifest.python.maximumExclusiveVersion):
   python3.12 -m venv ~/totalseg-env
-  ~/totalseg-env/bin/python3 -m pip install --upgrade \(requirements)
+  ~/totalseg-env/bin/python3 -m pip install --upgrade --require-hashes -r \(requirements)
 
 For offline installs, mirror those locked artifacts, pre-populate model weights, install the pinned dcm2niix binary, then update the plugin settings to point to the Python interpreter in that environment.
 """

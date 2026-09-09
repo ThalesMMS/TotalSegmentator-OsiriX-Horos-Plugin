@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "lockIdentifier": "totalsegmentator-env-2026-06-21-ts-2.11.0-torch-2.8.0",
+  "lockIdentifier": "totalsegmentator-env-2026-09-09-ts-2.18.0-torch-2.8.0",
   "backend": {
     "distributionName": "TotalSegmentator",
     "importName": "totalsegmentator",
-    "version": "2.11.0",
+    "version": "2.18.0",
     "sourceTreePolicy": "checked-in totalsegmentator/ is reference-only; runtime must execute the pinned installed distribution",
     "upstreamURL": "https://github.com/wasserth/TotalSegmentator"
   },
@@ -17,8 +17,8 @@
     {
       "distributionName": "TotalSegmentator",
       "importName": "totalsegmentator",
-      "requirement": "TotalSegmentator==2.11.0",
-      "exactVersion": "2.11.0",
+      "requirement": "TotalSegmentator==2.18.0",
+      "exactVersion": "2.18.0",
       "required": true
     },
     {
@@ -111,8 +111,107 @@
       "requirement": "pyarrow==17.0.0",
       "exactVersion": "17.0.0",
       "required": true
+    },
+    {
+      "distributionName": "xmltodict",
+      "importName": "xmltodict",
+      "requirement": "xmltodict==1.0.4",
+      "exactVersion": "1.0.4",
+      "required": true
+    },
+    {
+      "distributionName": "blosc",
+      "importName": "blosc",
+      "requirement": "blosc==1.11.4",
+      "exactVersion": "1.11.4",
+      "required": true
+    },
+    {
+      "distributionName": "imgkit",
+      "importName": "imgkit",
+      "requirement": "imgkit==1.2.3",
+      "exactVersion": "1.2.3",
+      "required": true
+    },
+    {
+      "distributionName": "Jinja2",
+      "importName": "jinja2",
+      "requirement": "Jinja2==3.1.6",
+      "exactVersion": "3.1.6",
+      "required": true
+    },
+    {
+      "distributionName": "Pillow",
+      "importName": "PIL",
+      "requirement": "Pillow==12.3.0",
+      "exactVersion": "12.3.0",
+      "required": true
+    },
+    {
+      "distributionName": "scikit-image",
+      "importName": "skimage",
+      "requirement": "scikit-image==0.26.0",
+      "exactVersion": "0.26.0",
+      "required": true
+    },
+    {
+      "distributionName": "scipy",
+      "importName": "scipy",
+      "requirement": "scipy==1.17.1",
+      "exactVersion": "1.17.1",
+      "required": true
+    },
+    {
+      "distributionName": "matplotlib",
+      "importName": "matplotlib",
+      "requirement": "matplotlib==3.11.1",
+      "exactVersion": "3.11.1",
+      "required": true
+    },
+    {
+      "distributionName": "networkx",
+      "importName": "networkx",
+      "requirement": "networkx==3.6.1",
+      "exactVersion": "3.6.1",
+      "required": true
+    },
+    {
+      "distributionName": "pandas",
+      "importName": "pandas",
+      "requirement": "pandas==3.0.5",
+      "exactVersion": "3.0.5",
+      "required": true
+    },
+    {
+      "distributionName": "scikit-learn",
+      "importName": "sklearn",
+      "requirement": "scikit-learn==1.9.0",
+      "exactVersion": "1.9.0",
+      "required": true
+    },
+    {
+      "distributionName": "fury",
+      "importName": "fury",
+      "requirement": "fury==0.12.0",
+      "exactVersion": "0.12.0",
+      "required": true
+    },
+    {
+      "distributionName": "dipy",
+      "importName": "dipy",
+      "requirement": "dipy==1.12.1",
+      "exactVersion": "1.12.1",
+      "required": true
     }
   ],
+  "resolver": {
+    "requirementsFileName": "TotalSegmentatorRequirements.txt",
+    "requirementsSHA256": "1d054f47e7dc2bbe7842376ba248c5fe72a812d8ab14c6279f1d087d8ba65dd8",
+    "distributionCount": 118,
+    "generatedWith": "uv 0.8.22 pip compile --generate-hashes --exclude-newer 2026-09-08",
+    "targetPlatform": "macos-arm64",
+    "pythonVersions": ["3.11", "3.12"]
+  },
   "dcm2niix": {
     "version": "v1.0.20250506",
     "archiveName": "dcm2niix_mac.zip",
@@ -122,11 +221,11 @@
   "weights": [
     {
       "scope": "TotalSegmentator model weights",
-      "provenance": "Managed by totalsegmentator.config/setup_nnunet for TotalSegmentator 2.11.0; environment-manifest.json records the resolved weights directory for each install."
+      "provenance": "Managed by totalsegmentator.config/setup_nnunet for TotalSegmentator 2.18.0; environment-manifest.json records the resolved weights directory for each install."
     }
   ],
   "offlineInstall": {
-    "requirementFileName": "TotalSegmentatorEnvironmentLock.json",
-    "instructions": "Install the package requirements in this lock into the selected Python environment, pre-populate TotalSegmentator weights, install the pinned dcm2niix binary, then run the plugin health check to write environment-manifest.json."
+    "requirementFileName": "TotalSegmentatorRequirements.txt",
+    "instructions": "Install with pip --require-hashes from the bundled requirements file, pre-populate TotalSegmentator weights, install the pinned dcm2niix binary, then run the plugin health check to write environment-manifest.json."
   }
 }

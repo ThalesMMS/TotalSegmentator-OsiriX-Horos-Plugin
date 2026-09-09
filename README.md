@@ -43,7 +43,7 @@ Unzip the package first, then copy the extracted `.osirixplugin` bundle into the
 - Horos: `~/Library/Application Support/Horos/Plugins/`
 - OsiriX: `~/Library/Application Support/OsiriX/Plugins/`
 
-After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplugin"` if you need an ad-hoc local signature, then relaunch the host app. On first launch the plugin provisions its Python environment from `TotalSegmentatorEnvironmentLock.json` and writes the resolved `environment-manifest.json` under `~/Library/Application Support/TotalSegmentatorHorosPlugin/`. No additional files are required beyond Horos or OsiriX, a compatible macOS version, and an internet connection to fetch the locked Python packages and TotalSegmentator weights when needed.
+After copying, run `codesign --force --deep --sign - "/path/to/plugin.osirixplugin"` if you need an ad-hoc local signature, then relaunch the host app. On first launch the plugin provisions its Python environment from `TotalSegmentatorEnvironmentLock.json` and the bundled, hash-locked `TotalSegmentatorRequirements.txt`, then writes the resolved `environment-manifest.json` under `~/Library/Application Support/TotalSegmentatorHorosPlugin/`. No additional files are required beyond Horos or OsiriX, a compatible macOS version, and an internet connection to fetch the locked Python packages and TotalSegmentator weights when needed.
 
 ---
 
@@ -159,7 +159,7 @@ rm -f "$HOME/Library/Application Support/TotalSegmentatorHorosPlugin/environment
 
 The plugin serializes startup/run environment checks in-process and uses `environment-setup.lock` so a second Horos/OsiriX process cannot mutate the same managed environment concurrently. If an install marker is left behind after a crash or forced quit, the next locked health check reports the interrupted setup, clears the marker, and validates the environment before any DICOM export or inference.
 
-For offline installs, create or update the selected Python environment using the exact requirements in `TotalSegmentatorEnvironmentLock.json`, pre-populate TotalSegmentator weights for the locked backend, install the pinned `dcm2niix` binary and verify its SHA-256 values, then relaunch the plugin so it can write a fresh `environment-manifest.json`.
+For offline installs, create or update the selected Python environment with `pip --require-hashes -r TotalSegmentatorRequirements.txt`, pre-populate TotalSegmentator weights for the locked backend, install the pinned `dcm2niix` binary and verify its SHA-256 values, then relaunch the plugin so it can write a fresh `environment-manifest.json`.
 
 ### Optional: enable CUDA GPU-accelerated resampling
 

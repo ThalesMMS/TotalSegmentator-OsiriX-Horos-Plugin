@@ -32,6 +32,7 @@
 		D2D8D20D2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */; };
 		E8A14C012E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json in Resources */ = {isa = PBXBuildFile; fileRef = E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */; };
 		E8A15D012E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json in Resources */ = {isa = PBXBuildFile; fileRef = E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */; };
+		E8A15F012E00001900ABCDEF /* TotalSegmentatorRequirements.txt in Resources */ = {isa = PBXBuildFile; fileRef = E8A15F002E00001900ABCDEF /* TotalSegmentatorRequirements.txt */; };
 		E8A16E012E00001600ABCDEF /* python_bridge in Resources */ = {isa = PBXBuildFile; fileRef = E8A16E002E00001600ABCDEF /* python_bridge */; };
 		F12400022AF6002400AAA111 /* ReleaseGateContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12400012AF6002400AAA111 /* ReleaseGateContractTests.swift */; };
 /* End PBXBuildFile section */
@@ -65,6 +66,7 @@
 		D2D8D20C2AF5C1A000AAA111 /* RunSegmentationWindowController+TaskPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RunSegmentationWindowController+TaskPicker.swift"; sourceTree = "<group>"; };
 		E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = TotalSegmentatorTaskCapabilities.json; sourceTree = "<group>"; };
 		E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = TotalSegmentatorEnvironmentLock.json; sourceTree = "<group>"; };
+		E8A15F002E00001900ABCDEF /* TotalSegmentatorRequirements.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TotalSegmentatorRequirements.txt; sourceTree = "<group>"; };
 		E8A16E002E00001600ABCDEF /* python_bridge */ = {isa = PBXFileReference; lastKnownFileType = folder; path = python_bridge; sourceTree = "<group>"; };
 		F12400012AF6002400AAA111 /* ReleaseGateContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseGateContractTests.swift; sourceTree = "<group>"; };
 		F12400032AF6002400AAA111 /* TotalSegmentatorHorosPluginTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TotalSegmentatorHorosPluginTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -115,6 +117,7 @@
 				D2D8D20A2AF5B3CF00AAA111 /* SegmentationProgressWindowController.swift */,
 				E8A14C002E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json */,
 				E8A15D002E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json */,
+				E8A15F002E00001900ABCDEF /* TotalSegmentatorRequirements.txt */,
 				E8A16E002E00001600ABCDEF /* python_bridge */,
 				CEC0F6EC28BF49EB003DD38F /* Settings.xib */,
 				D2D8D2042AF5A00100AAA111 /* RunSegmentationWindowController.xib */,
@@ -225,6 +228,7 @@
 				CEC0F6EE28BF49EB003DD38F /* Settings.xib in Resources */,
 				E8A14C012E00001400ABCDEF /* TotalSegmentatorTaskCapabilities.json in Resources */,
 				E8A15D012E00001500ABCDEF /* TotalSegmentatorEnvironmentLock.json in Resources */,
+				E8A15F012E00001900ABCDEF /* TotalSegmentatorRequirements.txt in Resources */,
 				E8A16E012E00001600ABCDEF /* python_bridge in Resources */,
 				D2D8D2062AF5A9D200AAA111 /* TotalSegmentatorToolbar.png in Resources */,
 			);
