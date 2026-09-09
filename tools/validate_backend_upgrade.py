@@ -6,8 +6,10 @@ an isolated interpreter. It is a packaging check, not an inference/geometry test
 """
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +18,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = Path("tests/fixtures/totalsegmentator-2.18.0-contract.json")
 PLUGIN_PATH = Path("MyOsiriXPluginFolder-Swift")
+
+
+def canonicalize_name(name):
+    return "-".join(filter(None, re.split(r"[-_.]+", name.lower())))
 
 
 def require(condition, message):
@@ -52,6 +58,9 @@ def validate_contract(lock, manifest, contract):
     for package in packages.values():
         require(package["requirement"] == f'{package["distributionName"]}=={package["exactVersion"]}',
                 f'Non-exact or inconsistent package requirement: {package["distributionName"]}.')
+    locked_required = {canonicalize_name(name) for name, package in packages.items() if package["required"]}
+    declared_runtime = {canonicalize_name(name) for name in contract["runtimeDependencies"]}
+    require(declared_runtime <= locked_required, "TotalSegmentator runtime dependency is missing from the lock.")
 
     registered = set(contract["tasks"])
     excluded = set(contract["excludedTasks"])
@@ -78,6 +87,59 @@ def validate_contract(lock, manifest, contract):
         require(task["supportsMultilabel"] is True, f"Canonical multilabel output disabled: {identifier}.")
         require(task["experimental"] is False and task["deprecated"] is False,
                 f"Experimental/deprecated task exposed: {identifier}.")
+
+
+def parse_hash_locked_requirements(content):
+    """Return canonical distribution names, exact versions, and artifact hashes."""
+    resolved = {}
+    current = None
+    for line_number, line in enumerate(content.splitlines(), start=1):
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            require(line.endswith("\\"), f"Requirement on line {line_number} has no hashes.")
+            requirement = line[:-1].strip()
+            match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([^ ;]+)", requirement)
+            require(match is not None, f"Requirement on line {line_number} is not an exact pin.")
+            name, version = match.groups()
+            current = canonicalize_name(name)
+            require(current not in resolved, f"Duplicate resolver distribution: {name}.")
+            resolved[current] = {"name": name, "version": version, "hashes": []}
+            continue
+
+        require(current is not None, f"Orphaned hash on line {line_number}.")
+        hash_match = re.fullmatch(r"\s+--hash=sha256:([0-9a-f]{64})(?: \\)?", line)
+        require(hash_match is not None, f"Invalid resolver hash on line {line_number}.")
+        resolved[current]["hashes"].append(hash_match.group(1))
+
+    require(resolved, "Resolver is empty.")
+    require(all(item["hashes"] for item in resolved.values()), "Every resolver pin must have a SHA-256 hash.")
+    return resolved
+
+
+def validate_resolver(root, lock, contract):
+    """Validate the separately bundled, hash-locked transitive dependency graph."""
+    resolver = lock["resolver"]
+    requirement_name = resolver["requirementsFileName"]
+    require(Path(requirement_name).name == requirement_name, "Resolver requirement filename must be a basename.")
+    requirement_path = Path(root) / PLUGIN_PATH / requirement_name
+    content_bytes = requirement_path.read_bytes()
+    actual_sha256 = hashlib.sha256(content_bytes).hexdigest()
+    require(actual_sha256 == resolver["requirementsSHA256"], "Resolver requirements checksum mismatch.")
+    resolved = parse_hash_locked_requirements(content_bytes.decode("utf-8"))
+    require(len(resolved) == resolver["distributionCount"], "Resolver distribution count mismatch.")
+
+    for dependency in contract["runtimeDependencies"]:
+        require(canonicalize_name(dependency) in resolved,
+                f"Declared TotalSegmentator dependency missing from resolver: {dependency}.")
+    for package in lock["packages"]:
+        if not package["required"]:
+            continue
+        item = resolved.get(canonicalize_name(package["distributionName"]))
+        require(item is not None, f'Locked package missing from resolver: {package["distributionName"]}.')
+        require(item["version"] == package["exactVersion"],
+                f'Resolver version differs from lock: {package["distributionName"]}.')
+    return resolved
 
 
 # -I plus an empty working directory prevents the checkout's reference-only
@@ -161,6 +223,7 @@ def main(argv=None):
     try:
         lock, manifest, contract = load_inputs(args.root)
         validate_contract(lock, manifest, contract)
+        validate_resolver(args.root, lock, contract)
         if args.installed:
             validate_installed(probe_installed(lock, contract), lock, contract)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:

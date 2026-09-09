@@ -8,10 +8,11 @@ build configurations already package `TotalSegmentatorEnvironmentLock.json` and
 `TotalSegmentatorTaskCapabilities.json`; their native bridge continues to execute
 the pinned distribution, not the repository's reference-only source tree.
 
-The environment lock identifier, backend version, exact package requirement and
-weights provenance are updated together. Other existing package pins, the Python
-3.11–3.12 range and the pinned dcm2niix artifact are unchanged. This is **not** a
-complete transitive-dependency refresh or a replacement of the native plugin.
+The environment lock identifier, backend version, exact package requirements and
+weights provenance are updated together. `TotalSegmentatorRequirements.txt`
+locks the complete 118-distribution runtime graph for Python 3.11–3.12 with
+SHA-256 artifact hashes. The Python range and pinned dcm2niix artifact are
+unchanged. This is not a replacement of the native plugin.
 
 Reviewed upstream sources:
 
@@ -24,9 +25,9 @@ Reviewed upstream sources:
 `tests/fixtures/totalsegmentator-2.18.0-contract.json` records the release commit,
 reviewed task metadata, exclusions, six upstream Git blob identities and the wheel
 SHA-256 reported by PyPI. The upstream project is Apache-2.0 licensed. The wheel
-hash is provenance, **not** a claim that this PR downloaded/verified the wheel or
-adds pip hash enforcement. Git blob SHA-1 values identify reviewed source files;
-they are not used as package-download security hashes.
+hash is also present in the separately checksummed resolver, which the plugin
+installs with pip hash enforcement. Git blob SHA-1 values identify reviewed source
+files; they are not used as package-download security hashes.
 
 Do not substitute the moving upstream `master` branch for this release: it can
 contain changes even while `setup.py` still declares 2.18.0. Do not replace all
@@ -98,35 +99,33 @@ PYTHON="$HOME/Library/Application Support/TotalSegmentatorHorosPlugin/PythonEnvi
 "$PYTHON" -m pip check
 ```
 
-The installed audit uses `python -I` in an empty temporary working directory. It
-checks the exact required package versions, optional package versions when
-present, the Python version range, actual distribution/module resolution and the
-six reviewed upstream source identities. It imports neither the engine nor torch
-and downloads no weights. Missing dependencies or a stale/shadowed backend cause a
-nonzero exit, not a misleading success. This is still not a scientific-library
-import test, a wheel-availability resolver, a device probe or an inference test.
+The default audit also verifies the resolver checksum, every exact pin and every
+artifact hash. The installed audit uses `python -I` in an empty temporary working
+directory. It checks the direct runtime package versions, optional package versions
+when present, the Python version range, actual distribution/module resolution and
+the six reviewed upstream source identities. The plugin health check additionally
+validates all 118 resolved distributions. It imports neither the engine nor torch
+and downloads no weights. This is still not a scientific-library import test, a
+device probe or an inference test.
 
 ### Checks executed while preparing this change
 
-The changed Python files and JSON resources were materialized in a **partial
-checkout**, in a Linux/Python 3.13.5 environment without TotalSegmentator, nibabel,
-pydicom, macOS, Xcode or a host application. Python 3.13 was used only to execute
-stdlib packaging tests; it is not added to the plugin's supported runtime range.
+The resolver was generated in a Linux/Python 3.9 environment while explicitly
+targeting macOS arm64 and Python 3.11–3.12. The environment did not provide
+TotalSegmentator, macOS, Xcode or a host application; Python 3.9 is not added to
+the plugin's supported runtime range.
 
 ```bash
 python tools/validate_backend_upgrade.py
-python -m pytest -q tests/test_backend_upgrade_contract.py tests/test_plugin_capability_manifest.py -k 'not swift'
+python -m pytest -q tests/test_backend_upgrade_contract.py tests/test_plugin_capability_manifest.py
 python -m compileall -q tools/validate_backend_upgrade.py tests/test_backend_upgrade_contract.py tests/test_plugin_capability_manifest.py
 ```
 
-Result: **39 passed, 3 deselected**. The three existing Swift source-inspection
-tests remain in the suite, unchanged in purpose, but were not run because the
-native source files were not materialized in that partial checkout. The installed
-audit was also invoked as a negative check: it exited 1 and correctly reported
-that TotalSegmentator was not installed. Full dependency resolution, scientific
-imports, installed-release positive validation, model inference, native
-compilation, signing and Horos/OsiriX end-to-end validation were **not performed**.
-No GitHub Actions workflow or required CI check is added.
+Result: **51 passed**. Dependency resolution completed for both supported Python
+minor versions and produced the same 118 exact pins. Scientific imports, a full
+artifact download/install, installed-release positive validation, model inference,
+native compilation, signing and Horos/OsiriX end-to-end validation were **not
+performed**. No GitHub Actions workflow or required CI check is added.
 
 ## Build, deployment and acceptance
 

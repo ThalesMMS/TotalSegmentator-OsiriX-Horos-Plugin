@@ -32,6 +32,42 @@ def valid_report(lock, contract):
 
 def test_reviewed_contract_is_consistent(inputs):
     validator.validate_contract(*inputs)
+    lock, _, contract = inputs
+    resolved = validator.validate_resolver(ROOT, lock, contract)
+    assert len(resolved) == 118
+
+
+@pytest.mark.parametrize("dependency", ["scipy", "scikit-image", "pandas", "xmltodict", "blosc", "fury"])
+def test_runtime_dependency_closure_is_locked(inputs, dependency):
+    lock, _, contract = inputs
+    packages = {validator.canonicalize_name(package["distributionName"]): package for package in lock["packages"]}
+    resolved = validator.validate_resolver(ROOT, lock, contract)
+    assert packages[dependency]["required"] is True
+    assert resolved[dependency]["version"] == packages[dependency]["exactVersion"]
+    assert resolved[dependency]["hashes"]
+
+
+def test_missing_declared_runtime_dependency_is_rejected(inputs):
+    lock, manifest, contract = copy.deepcopy(inputs)
+    lock["packages"] = [package for package in lock["packages"] if package["distributionName"] != "scipy"]
+    with pytest.raises(ValueError, match="runtime dependency"):
+        validator.validate_contract(lock, manifest, contract)
+
+
+def test_resolver_rejects_unhashed_requirement():
+    with pytest.raises(ValueError, match="no hashes"):
+        validator.parse_hash_locked_requirements("scipy==1.17.1")
+
+
+def test_swift_installer_enforces_and_validates_hash_locked_resolver():
+    source = (ROOT / "MyOsiriXPluginFolder-Swift" / "TotalSegmentatorHorosPlugin+Environment.swift").read_text()
+    assert '"--require-hashes", "-r", requirementsURL.path' in source
+    assert 'manifest["resolvedDistributions"]' in source
+    assert "missing resolved distribution" in source
+
+    project_directory = ROOT / "MyOsiriXPluginFolder-Swift" / "TotalSegmentatorHorosPlugin.xcodeproj"
+    for project in project_directory.glob("project*.pbxproj"):
+        assert "TotalSegmentatorRequirements.txt in Resources" in project.read_text()
 
 
 @pytest.mark.parametrize("field", ["lock", "manifest", "package", "requirement", "identifier"])
